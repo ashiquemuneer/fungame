@@ -93,7 +93,7 @@ export function SessionPage() {
   const joinUrl =
     typeof window === 'undefined'
       ? ''
-      : `${window.location.origin}/join?roomCode=${encodeURIComponent(session.roomCode)}`
+      : `${window.location.origin}${window.location.pathname}#/join?roomCode=${encodeURIComponent(session.roomCode)}`
 
   return (
     <div className="space-y-3">

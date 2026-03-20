@@ -11,6 +11,7 @@ export function JoinPage() {
   const [roomCode, setRoomCode] = useState(roomCodeFromQuery || (isSupabaseConfigured ? '' : 'PLAY42'))
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
+  const [joining, setJoining] = useState(false)
 
   return (
     <div className="mx-auto grid max-w-5xl gap-6 xl:grid-cols-[1fr_0.9fr]">
@@ -26,14 +27,16 @@ export function JoinPage() {
           className="mt-8 space-y-4"
           onSubmit={async (event) => {
             event.preventDefault()
+            setJoining(true)
+            setError('')
             const joined = await joinSession(roomCode, displayName)
+            setJoining(false)
 
             if (!joined) {
-              setError('That room code is invalid or the host has already closed the room.')
+              setError('Room not found. Make sure the code is correct and the host has not closed the room. If this is your first try, wait a moment and try again.')
               return
             }
 
-            setError('')
             navigate(`/play/${joined.sessionId}?playerId=${joined.playerId}`)
           }}
         >
@@ -56,8 +59,8 @@ export function JoinPage() {
               {error}
             </div>
           ) : null}
-          <button className="button-primary w-full" type="submit">
-            Join room
+          <button className="button-primary w-full" type="submit" disabled={joining}>
+            {joining ? 'Connecting…' : 'Join room'}
           </button>
         </form>
       </section>

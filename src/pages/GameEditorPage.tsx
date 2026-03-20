@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Copy, PencilLine, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Copy, PencilLine, Plus, Trash2, Users } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { QuestionForm } from '../components/QuestionForm'
 import { cn, formatDate } from '../lib/utils'
 import { useGameStore } from '../state/game-store'
+import { isSupabaseConfigured } from '../lib/supabase'
 import type { Question } from '../types/game'
 
 export function GameEditorPage() {
   const { gameId = '' } = useParams()
-  const { getGame, updateGameMeta, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd } =
+  const { getGame, updateGameMeta, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd, inviteCollaborator } =
     useGameStore()
   const game = getGame(gameId)
   const [editingQuestion, setEditingQuestion] = useState<Question | undefined>()
@@ -16,6 +17,10 @@ export function GameEditorPage() {
   const [dropTarget, setDropTarget] = useState<{ id: string; placement: 'before' | 'after' } | null>(
     null,
   )
+  const [shareEmail, setShareEmail] = useState('')
+  const [shareError, setShareError] = useState('')
+  const [shareSuccess, setShareSuccess] = useState('')
+  const [shareLoading, setShareLoading] = useState(false)
 
   const orderedQuestions = useMemo(() => [...(game?.questions ?? [])], [game?.questions])
 
@@ -107,6 +112,54 @@ export function GameEditorPage() {
           </div>
         </div>
       </section>
+
+      {isSupabaseConfigured && (
+        <section className="panel p-3">
+          <div className="flex items-center gap-2">
+            <Users className="size-4 text-white/45" />
+            <p className="text-sm uppercase tracking-[0.25em] text-white/45">Share with partner host</p>
+          </div>
+          <form
+            className="mt-3.5 flex gap-2"
+            onSubmit={async (e) => {
+              e.preventDefault()
+              setShareError('')
+              setShareSuccess('')
+              setShareLoading(true)
+              const err = await inviteCollaborator(gameId, shareEmail)
+              setShareLoading(false)
+              if (err) {
+                setShareError(err)
+              } else {
+                setShareSuccess(`Invited ${shareEmail} as a collaborator.`)
+                setShareEmail('')
+              }
+            }}
+          >
+            <input
+              className="input flex-1"
+              type="email"
+              placeholder="partner@example.com"
+              value={shareEmail}
+              required
+              onChange={(e) => { setShareEmail(e.target.value); setShareError(''); setShareSuccess('') }}
+            />
+            <button className="button-secondary shrink-0" type="submit" disabled={shareLoading}>
+              {shareLoading ? 'Inviting…' : 'Invite'}
+            </button>
+          </form>
+          {shareError && (
+            <div className="mt-2 rounded-2xl border border-rose-300/20 bg-rose-300/10 px-4 py-2.5 text-sm text-rose-100">
+              {shareError}
+            </div>
+          )}
+          {shareSuccess && (
+            <div className="mt-2 rounded-2xl border border-green-300/20 bg-green-300/10 px-4 py-2.5 text-sm text-green-100">
+              {shareSuccess}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="grid gap-2 lg:grid-cols-[220px_minmax(0,_1fr)] xl:grid-cols-[250px_minmax(0,_1fr)] 2xl:grid-cols-[280px_minmax(0,_1fr)]">
         <aside className="panel p-2 lg:sticky lg:top-2 lg:h-fit lg:max-h-[calc(100vh-1.5rem)] lg:overflow-y-auto">

@@ -3,16 +3,20 @@ import { NavLink } from 'react-router-dom'
 import type { PropsWithChildren } from 'react'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useHostAccess } from '../state/host-access'
+import { useGameStore } from '../state/game-store'
 import { cn } from '../lib/utils'
 import { useLocation } from 'react-router-dom'
 
 export function AppShell({ children }: PropsWithChildren) {
   const location = useLocation()
   const { isUnlocked, logout } = useHostAccess()
+  const { isHostAuthenticated, hostEmail, signOut } = useGameStore()
   const isHostRoute = location.pathname.startsWith('/host')
+
+  const showHostLink = isSupabaseConfigured ? isHostAuthenticated : isUnlocked
   const navItems = [
     { to: '/', label: 'Overview' },
-    isUnlocked
+    showHostLink
       ? { to: '/host/dashboard', label: 'Host' }
       : { to: '/host/login', label: 'Host login' },
     { to: '/join', label: 'Join' },
@@ -69,7 +73,28 @@ export function AppShell({ children }: PropsWithChildren) {
               ))}
             </nav>
 
-            {isUnlocked ? (
+            {isSupabaseConfigured ? (
+              isHostAuthenticated ? (
+                <div className="flex items-center gap-2">
+                  {hostEmail && (
+                    <span className="hidden text-sm text-white/50 sm:block">{hostEmail}</span>
+                  )}
+                  <button
+                    className="button-ghost rounded-full border border-white/10"
+                    type="button"
+                    onClick={() => signOut()}
+                  >
+                    <LogOut className="size-4" />
+                    Sign out
+                  </button>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/60">
+                  <ShieldCheck className="size-4 text-orange-200" />
+                  Participants stay out of host pages
+                </div>
+              )
+            ) : isUnlocked ? (
               <button className="button-ghost rounded-full border border-white/10" type="button" onClick={logout}>
                 <LogOut className="size-4" />
                 Lock

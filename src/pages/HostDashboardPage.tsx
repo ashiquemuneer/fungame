@@ -190,8 +190,12 @@ export function HostDashboardPage() {
                       <button
                         className="button-primary w-full min-w-0 justify-center"
                         type="button"
-                        onClick={() => {
-                          const sessionId = createSession(game.id)
+                        onClick={async () => {
+                          const sessionId = await createSession(game.id)
+                          if (!sessionId) {
+                            alert('Failed to create room — check your internet connection and try again.')
+                            return
+                          }
                           navigate(`/host/sessions/${sessionId}`)
                         }}
                       >

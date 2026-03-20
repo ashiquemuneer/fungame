@@ -156,6 +156,109 @@ function scoreAnswer(
 }
 
 // ---------------------------------------------------------------------------
+// Demo game seeder (runs once when a new host has no games)
+// ---------------------------------------------------------------------------
+
+async function seedDemoGame(userId: string): Promise<void> {
+  if (!supabase) return
+
+  // Create the game
+  const { data: game, error: gameErr } = await supabase
+    .from('games')
+    .insert({
+      host_user_id: userId,
+      title: '🚀 Demo: All Question Types',
+      description:
+        'Try every slide type — section, multiple choice, true/false, short text, emoji, and image reveal.',
+      status: 'published',
+    })
+    .select('id')
+    .single()
+
+  if (gameErr || !game) return
+
+  const gameId = game.id
+
+  // Insert all 6 questions
+  const { data: questions, error: qErr } = await supabase
+    .from('questions')
+    .insert([
+      {
+        game_id: gameId, position: 0, type: 'section',
+        prompt: '🎉 Welcome to the Demo Quiz!',
+        accepted_answer: 'This is a section slide — use it to introduce a round or show a title.',
+        slide_layout: 'auto', time_limit_seconds: 0, points: 0,
+        is_demo: false, is_tie_breaker: false,
+      },
+      {
+        game_id: gameId, position: 1, type: 'mcq',
+        prompt: 'Which planet is known as the Red Planet?',
+        slide_layout: 'auto', time_limit_seconds: 20, points: 10,
+        is_demo: false, is_tie_breaker: false,
+      },
+      {
+        game_id: gameId, position: 2, type: 'true_false',
+        prompt: 'True or False: Honey never expires — scientists found edible honey in 3,000-year-old Egyptian tombs.',
+        slide_layout: 'auto', time_limit_seconds: 15, points: 5,
+        is_demo: false, is_tie_breaker: false,
+      },
+      {
+        game_id: gameId, position: 3, type: 'short_text',
+        prompt: 'Name any programming language invented before 1980.',
+        accepted_answer: 'COBOL, FORTRAN, C, Pascal, BASIC, Lisp, Smalltalk, Ada — any valid answer scores points.',
+        slide_layout: 'auto', time_limit_seconds: 30, points: 15,
+        is_demo: false, is_tie_breaker: false,
+      },
+      {
+        game_id: gameId, position: 4, type: 'emoji',
+        prompt: 'What famous movie do these emojis represent?',
+        emoji_prompt: '🦁👑🌍',
+        accepted_answer: 'The Lion King',
+        slide_layout: 'auto', time_limit_seconds: 20, points: 10,
+        is_demo: false, is_tie_breaker: false,
+      },
+      {
+        game_id: gameId, position: 5, type: 'image_guess',
+        prompt: 'What famous landmark is this? Type your answer.',
+        image_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg/700px-Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg',
+        image_reveal_config: { focusX: 50, focusY: 40, zoom: 3.5, rotation: 0, revealStep: 0.55 },
+        accepted_answer: 'Eiffel Tower',
+        slide_layout: 'auto', time_limit_seconds: 30, points: 20,
+        is_demo: false, is_tie_breaker: false,
+      },
+    ])
+    .select('id, position')
+
+  if (qErr || !questions) return
+
+  const byPos = new Map(questions.map((q) => [q.position, q.id]))
+
+  // Insert options for MCQ (pos 1) and True/False (pos 2)
+  const options: object[] = []
+  const mcqId = byPos.get(1)
+  const tfId = byPos.get(2)
+
+  if (mcqId) {
+    options.push(
+      { question_id: mcqId, position: 0, label: 'Mercury', is_correct: false },
+      { question_id: mcqId, position: 1, label: 'Mars', is_correct: true },
+      { question_id: mcqId, position: 2, label: 'Jupiter', is_correct: false },
+      { question_id: mcqId, position: 3, label: 'Venus', is_correct: false },
+    )
+  }
+  if (tfId) {
+    options.push(
+      { question_id: tfId, position: 0, label: 'True', is_correct: true },
+      { question_id: tfId, position: 1, label: 'False', is_correct: false },
+    )
+  }
+
+  if (options.length > 0) {
+    await supabase.from('question_options').insert(options)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Data loader
 // ---------------------------------------------------------------------------
 
@@ -211,11 +314,30 @@ async function loadAll(userId: string): Promise<AppState> {
   const allSessionRows = [...sessionMap.values()]
   const allSessionIds = allSessionRows.map((s) => s.id)
 
-  // 4. Load games for player sessions that I don't already have
+  // 1b. Games I collaborate on
+  const { data: collabLinks } = await supabase
+    .from('game_collaborators')
+    .select('game_id')
+    .eq('collaborator_user_id', userId)
+
+  const collabGameIds = (collabLinks ?? []).map((r: any) => r.game_id)
   const hostGameIds = new Set(((hostGamesData ?? []) as any[]).map((g) => g.id))
+  const newCollabIds = collabGameIds.filter((id: string) => !hostGameIds.has(id))
+
+  let collabGamesData: any[] = []
+  if (newCollabIds.length > 0) {
+    const { data } = await supabase
+      .from('games')
+      .select(GAME_SELECT)
+      .in('id', newCollabIds)
+    collabGamesData = data ?? []
+  }
+
+  // 4. Load games for player sessions that I don't already have
+  const allOwnedGameIds = new Set([...hostGameIds, ...newCollabIds])
   const missingGameIds = playerSessionData
-    .map((s) => s.game_id)
-    .filter((id) => !hostGameIds.has(id))
+    .map((s: any) => s.game_id)
+    .filter((id: string) => !allOwnedGameIds.has(id))
 
   let playerGamesData: any[] = []
   if (missingGameIds.length > 0) {
@@ -240,7 +362,7 @@ async function loadAll(userId: string): Promise<AppState> {
   }
 
   return {
-    games: [...(hostGamesData ?? []), ...playerGamesData].map(mapGame),
+    games: [...(hostGamesData ?? []), ...collabGamesData, ...playerGamesData].map(mapGame),
     sessions: allSessionRows.map(mapSession),
     players: playerRows.map(mapPlayer),
     answers: answerRows.map(mapAnswer),
@@ -256,32 +378,55 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
   const [userId, setUserId] = useState<string | null>(null)
   const stateRef = useRef(state)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [hostEmail, setHostEmail] = useState<string | null>(null)
+  const [isHostAuthenticated, setIsHostAuthenticated] = useState(false)
 
   useEffect(() => {
     stateRef.current = state
   }, [state])
 
-  // Anonymous sign-in on mount
+  // Anonymous sign-in on mount (with timeout so corporate firewalls don't hang the app)
   useEffect(() => {
     if (!supabase) return
 
     async function init() {
-      const { data: { session } } = await supabase!.auth.getSession()
-      if (session?.user) {
-        setUserId(session.user.id)
-      } else {
-        const { data } = await supabase!.auth.signInAnonymously()
-        setUserId(data.user?.id ?? null)
+      try {
+        const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000))
+        const userResult = await Promise.race([
+          supabase!.auth.getUser().then((r) => r.data.user),
+          timeout,
+        ])
+        if (userResult?.email) {
+          // Email-authenticated host
+          setUserId(userResult.id)
+          setHostEmail(userResult.email)
+          setIsHostAuthenticated(true)
+        } else if (userResult?.id) {
+          // Anonymous user (player returning to the app)
+          setUserId(userResult.id)
+        }
+        // else: not signed in — host will use login page, player will auth in joinSession
+      } catch {
+        // network timeout, stay null
       }
     }
 
     init()
   }, [])
 
-  // Load state once signed in
+  // Load state once signed in; seed demo game on first login
   useEffect(() => {
     if (!userId) return
-    loadAll(userId).then(setState)
+    loadAll(userId)
+      .then(async (loaded) => {
+        if (loaded.games.length === 0) {
+          await seedDemoGame(userId)
+          return loadAll(userId)
+        }
+        return loaded
+      })
+      .then(setState)
+      .catch(() => setState({ games: [], sessions: [], players: [], answers: [] }))
   }, [userId])
 
   // Debounced refresh helper
@@ -554,21 +699,13 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
   // Session mutations
   // ---------------------------------------------------------------------------
 
-  const createSession = useCallback((gameId: string): string => {
+  const createSession = useCallback(async (gameId: string): Promise<string> => {
     if (!supabase || !userId) return ''
     const id = crypto.randomUUID()
     const now = new Date().toISOString()
     const roomCode = generateRoomCode()
 
-    const newSession: Session = {
-      id, gameId, roomCode, state: 'lobby',
-      currentQuestionIndex: null, imageRevealLevel: 0,
-      revealAnswers: false, leaderboardVisible: false, allowJoin: true, createdAt: now,
-    }
-
-    setState((c) => ({ ...c, sessions: [newSession, ...c.sessions] }))
-
-    supabase.from('sessions').insert({
+    const { error } = await supabase.from('sessions').insert({
       id,
       game_id: gameId,
       host_user_id: userId,
@@ -579,8 +716,19 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       leaderboard_visible: false,
       allow_join: true,
       created_at: now,
-    }).then(({ error }) => { if (error) console.error('createSession:', error) })
+    })
 
+    if (error) {
+      console.error('createSession failed:', error)
+      return ''
+    }
+
+    const newSession: Session = {
+      id, gameId, roomCode, state: 'lobby',
+      currentQuestionIndex: null, imageRevealLevel: 0,
+      revealAnswers: false, leaderboardVisible: false, allowJoin: true, createdAt: now,
+    }
+    setState((c) => ({ ...c, sessions: [newSession, ...c.sessions] }))
     return id
   }, [userId])
 
@@ -788,11 +936,16 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     if (!supabase) return null
 
     try {
-      // Ensure signed in
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        const { error } = await supabase.auth.signInAnonymously()
-        if (error) return null
+      // getUser() validates the token with the server — avoids race with the
+      // background signInAnonymously() that runs on mount.
+      let { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInAnonymously()
+        if (signInError || !signInData.user) {
+          console.error('joinSession: auth failed', signInError)
+          return null
+        }
+        user = signInData.user
       }
 
       const { data, error } = await supabase.rpc('join_session', {
@@ -800,19 +953,24 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
         p_display_name: displayName.trim(),
       })
 
-      if (error || !data?.[0]) return null
+      if (error) {
+        console.error('joinSession: RPC error', error.message, error.details, error.hint)
+        return null
+      }
+      if (!data?.[0]) {
+        console.error('joinSession: RPC returned no rows')
+        return null
+      }
 
       const { session_id: sessionId, player_id: playerId } = data[0]
 
       // Refresh state so PlayPage can find the session/game
-      const uid = (await supabase.auth.getUser()).data.user?.id
-      if (uid) {
-        setUserId(uid)
-        loadAll(uid).then(setState)
-      }
+      setUserId(user.id)
+      loadAll(user.id).then(setState)
 
       return { sessionId, playerId }
-    } catch {
+    } catch (err) {
+      console.error('joinSession: unexpected error', err)
       return null
     }
   }, [])
@@ -884,6 +1042,50 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     supabase.from('answers').update({ awarded_points: awardedPoints, is_correct: isCorrect ?? null, scored_manually: true })
       .eq('id', answerId)
       .then(({ error }) => { if (error) console.error('scoreTextAnswer:', error) })
+  }, [])
+
+  const signUp = useCallback(async (email: string, password: string): Promise<string | null> => {
+    if (!supabase) return 'Supabase not configured'
+    const { data, error } = await supabase.auth.signUp({ email: email.trim(), password })
+    if (error) return error.message
+    if (data.user) {
+      setUserId(data.user.id)
+      setHostEmail(data.user.email ?? null)
+      setIsHostAuthenticated(true)
+    }
+    return null
+  }, [])
+
+  const signIn = useCallback(async (email: string, password: string): Promise<string | null> => {
+    if (!supabase) return 'Supabase not configured'
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
+    if (error) return error.message
+    if (data.user) {
+      setUserId(data.user.id)
+      setHostEmail(data.user.email ?? null)
+      setIsHostAuthenticated(true)
+      loadAll(data.user.id).then(setState)
+    }
+    return null
+  }, [])
+
+  const signOutCb = useCallback(async () => {
+    if (!supabase) return
+    await supabase.auth.signOut()
+    setUserId(null)
+    setHostEmail(null)
+    setIsHostAuthenticated(false)
+    setState({ games: [], sessions: [], players: [], answers: [] })
+  }, [])
+
+  const inviteCollaborator = useCallback(async (gameId: string, email: string): Promise<string | null> => {
+    if (!supabase) return 'Supabase not configured'
+    const { error } = await supabase.rpc('invite_collaborator', {
+      p_game_id: gameId,
+      p_email: email.trim(),
+    })
+    if (error) return error.message
+    return null
   }, [])
 
   const resetDemo = useCallback(() => {
@@ -964,6 +1166,12 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       getPlayersForSession,
       getAnswersForSessionQuestion,
       getLeaderboard,
+      signUp,
+      signIn,
+      signOut: signOutCb,
+      inviteCollaborator,
+      hostEmail,
+      isHostAuthenticated,
     }),
     [
       state,
@@ -972,6 +1180,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       endCurrentQuestion, goToNextQuestion, endSession, joinSession, removePlayer,
       submitAnswer, scoreTextAnswer, resetDemo,
       getGame, getSession, getPlayersForSession, getAnswersForSessionQuestion, getLeaderboard,
+      signUp, signIn, signOutCb, inviteCollaborator, hostEmail, isHostAuthenticated,
     ],
   )
 

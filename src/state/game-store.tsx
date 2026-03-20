@@ -31,7 +31,7 @@ export interface GameStoreValue {
   deleteQuestion: (gameId: string, questionId: string) => void
   reorderQuestion: (gameId: string, draggedQuestionId: string, targetQuestionId: string) => void
   moveQuestionToEnd: (gameId: string, questionId: string) => void
-  createSession: (gameId: string) => string
+  createSession: (gameId: string) => Promise<string>
   startSession: (sessionId: string) => void
   pauseSession: (sessionId: string) => void
   resumeSession: (sessionId: string) => void
@@ -54,6 +54,12 @@ export interface GameStoreValue {
   getPlayersForSession: (sessionId: string) => SessionPlayer[]
   getAnswersForSessionQuestion: (sessionId: string, questionId: string) => Answer[]
   getLeaderboard: (sessionId: string) => LeaderboardEntry[]
+  signUp: (email: string, password: string) => Promise<string | null>
+  signIn: (email: string, password: string) => Promise<string | null>
+  signOut: () => Promise<void>
+  inviteCollaborator: (gameId: string, email: string) => Promise<string | null>
+  hostEmail: string | null
+  isHostAuthenticated: boolean
 }
 
 export const GameStoreContext = createContext<GameStoreValue | null>(null)
@@ -404,7 +410,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
     }))
   }, [])
 
-  const createSession = useCallback((gameId: string) => {
+  const createSession = useCallback(async (gameId: string) => {
     const sessionId = generateId('session')
 
     setState((current) => ({
@@ -812,6 +818,20 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
     [state.answers, state.players],
   )
 
+  const signUp = useCallback(async (_email: string, _password: string): Promise<string | null> => {
+    return 'Email sign-up requires Supabase to be configured.'
+  }, [])
+
+  const signIn = useCallback(async (_email: string, _password: string): Promise<string | null> => {
+    return null // local mode always "succeeds" — host code is used instead
+  }, [])
+
+  const signOutCb = useCallback(async () => {}, [])
+
+  const inviteCollaborator = useCallback(async (_gameId: string, _email: string): Promise<string | null> => {
+    return 'Sharing requires Supabase to be configured.'
+  }, [])
+
   const value = useMemo<GameStoreValue>(
     () => ({
       state,
@@ -840,6 +860,12 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       getPlayersForSession,
       getAnswersForSessionQuestion,
       getLeaderboard,
+      signUp,
+      signIn,
+      signOut: signOutCb,
+      inviteCollaborator,
+      hostEmail: null,
+      isHostAuthenticated: false,
     }),
     [
       state,
@@ -868,6 +894,10 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       getPlayersForSession,
       getAnswersForSessionQuestion,
       getLeaderboard,
+      signUp,
+      signIn,
+      signOutCb,
+      inviteCollaborator,
     ],
   )
 

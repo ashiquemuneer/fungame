@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { RequireHostAccess } from './components/RequireHostAccess'
 import { HomePage } from './pages/HomePage'
@@ -13,7 +13,7 @@ import { NotFoundPage } from './pages/NotFoundPage'
 
 function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AppShell>
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -30,7 +30,7 @@ function App() {
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AppShell>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
 
