@@ -10,6 +10,7 @@ import {
 import { supabase } from '../lib/supabase'
 import { GameStoreContext, sanitizeDraft, type GameStoreValue } from './game-store'
 import { generateRoomCode } from '../lib/mock-data'
+import { getMaxImageRevealLevel } from '../lib/image-reveal'
 import type {
   Answer,
   AppState,
@@ -211,7 +212,7 @@ async function loadAll(userId: string): Promise<AppState> {
   const allSessionIds = allSessionRows.map((s) => s.id)
 
   // 4. Load games for player sessions that I don't already have
-  const hostGameIds = new Set((hostGamesData ?? []).map((g) => g.id))
+  const hostGameIds = new Set(((hostGamesData ?? []) as any[]).map((g) => g.id))
   const missingGameIds = playerSessionData
     .map((s) => s.game_id)
     .filter((id) => !hostGameIds.has(id))
@@ -596,7 +597,6 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     const question = game?.questions[session.currentQuestionIndex]
     if (!question || question.type !== 'image_guess') return
 
-    const { getMaxImageRevealLevel } = require('../lib/image-reveal') as typeof import('../lib/image-reveal')
     const maxLevel = getMaxImageRevealLevel(question.imageRevealConfig)
     const nextLevel = Math.min(maxLevel, (session.imageRevealLevel ?? 0) + 1)
     if (nextLevel === session.imageRevealLevel) return
