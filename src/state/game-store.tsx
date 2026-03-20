@@ -27,6 +27,7 @@ export interface GameStoreValue {
   createGame: (title: string, description: string) => string
   updateGameMeta: (gameId: string, patch: Pick<Game, 'title' | 'description' | 'status'>) => void
   saveQuestion: (gameId: string, draft: QuestionDraft, questionId?: string) => void
+  duplicateQuestion: (gameId: string, questionId: string) => void
   deleteQuestion: (gameId: string, questionId: string) => void
   reorderQuestion: (gameId: string, draggedQuestionId: string, targetQuestionId: string) => void
   moveQuestionToEnd: (gameId: string, questionId: string) => void
@@ -299,6 +300,29 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
     },
     [],
   )
+
+  const duplicateQuestion = useCallback((gameId: string, questionId: string) => {
+    setState((current) => ({
+      ...current,
+      games: current.games.map((game) => {
+        if (game.id !== gameId) return game
+        const idx = game.questions.findIndex((q) => q.id === questionId)
+        if (idx === -1) return game
+        const original = game.questions[idx]
+        const copy: Question = {
+          ...original,
+          id: generateId('question'),
+          options: original.options.map((opt) => ({ ...opt, id: generateId('option') })),
+        }
+        const questions = [
+          ...game.questions.slice(0, idx + 1),
+          copy,
+          ...game.questions.slice(idx + 1),
+        ]
+        return { ...game, questions, updatedAt: new Date().toISOString() }
+      }),
+    }))
+  }, [])
 
   const deleteQuestion = useCallback((gameId: string, questionId: string) => {
     setState((current) => ({
@@ -794,6 +818,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       createGame,
       updateGameMeta,
       saveQuestion,
+      duplicateQuestion,
       deleteQuestion,
       reorderQuestion,
       moveQuestionToEnd,
@@ -821,6 +846,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       createGame,
       updateGameMeta,
       saveQuestion,
+      duplicateQuestion,
       deleteQuestion,
       reorderQuestion,
       moveQuestionToEnd,

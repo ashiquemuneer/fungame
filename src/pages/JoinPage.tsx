@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useGameStore } from '../state/game-store'
+import { isSupabaseConfigured } from '../lib/supabase'
 
 export function JoinPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { joinSession } = useGameStore()
   const roomCodeFromQuery = searchParams.get('roomCode')?.toUpperCase() || ''
-  const [roomCode, setRoomCode] = useState(roomCodeFromQuery || 'PLAY42')
+  const [roomCode, setRoomCode] = useState(roomCodeFromQuery || (isSupabaseConfigured ? '' : 'PLAY42'))
   const [displayName, setDisplayName] = useState('')
   const [error, setError] = useState('')
 
@@ -62,17 +63,25 @@ export function JoinPage() {
       </section>
 
       <section className="panel p-8">
-        <p className="text-sm uppercase tracking-[0.25em] text-white/45">Test instructions</p>
+        <p className="text-sm uppercase tracking-[0.25em] text-white/45">How to join</p>
         <div className="mt-5 space-y-4 rounded-[2rem] border border-white/10 bg-black/20 p-5 text-sm leading-7 text-white/70">
-          <p>Use the seeded room code `PLAY42` to test immediately.</p>
-          <p>
-            Open the host session page in one tab and this join screen in another to simulate a
-            real event.
-          </p>
-          <p>
-            When you are ready for Supabase, this screen is the one that should switch to anonymous
-            auth plus the `join_session()` RPC.
-          </p>
+          {isSupabaseConfigured ? (
+            <>
+              <p>Ask the host for the room code displayed on their screen.</p>
+              <p>
+                Enter the room code and your display name, then tap <strong className="text-white">Join room</strong> to
+                connect. You will be placed in the lobby until the host starts the game.
+              </p>
+            </>
+          ) : (
+            <>
+              <p>Use the seeded room code <span className="font-mono text-white">PLAY42</span> to test immediately.</p>
+              <p>
+                Open the host session page in one tab and this join screen in another to simulate a
+                real event.
+              </p>
+            </>
+          )}
         </div>
       </section>
     </div>

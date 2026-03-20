@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, PencilLine, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Copy, PencilLine, Plus, Trash2 } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { QuestionForm } from '../components/QuestionForm'
 import { cn, formatDate } from '../lib/utils'
@@ -8,7 +8,7 @@ import type { Question } from '../types/game'
 
 export function GameEditorPage() {
   const { gameId = '' } = useParams()
-  const { getGame, updateGameMeta, saveQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd } =
+  const { getGame, updateGameMeta, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd } =
     useGameStore()
   const game = getGame(gameId)
   const [editingQuestion, setEditingQuestion] = useState<Question | undefined>()
@@ -228,6 +228,15 @@ export function GameEditorPage() {
                     </button>
                     <button
                       className="button-ghost rounded-full border border-white/10"
+                      title="Duplicate slide"
+                      type="button"
+                      onClick={() => duplicateQuestion(game.id, question.id)}
+                    >
+                      <Copy className="size-4" />
+                    </button>
+                    <button
+                      className="button-ghost rounded-full border border-white/10"
+                      title="Delete slide"
                       type="button"
                       onClick={() => {
                         deleteQuestion(game.id, question.id)

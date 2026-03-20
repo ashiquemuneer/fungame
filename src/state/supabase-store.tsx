@@ -423,6 +423,75 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     persist()
   }, [])
 
+  const duplicateQuestion = useCallback((gameId: string, questionId: string) => {
+    if (!supabase) return
+    const now = new Date().toISOString()
+
+    setState((c) => ({
+      ...c,
+      games: c.games.map((g) => {
+        if (g.id !== gameId) return g
+        const idx = g.questions.findIndex((q) => q.id === questionId)
+        if (idx === -1) return g
+        const original = g.questions[idx]
+        const copy: import('../types/game').Question = {
+          ...original,
+          id: crypto.randomUUID(),
+          options: original.options.map((opt) => ({ ...opt, id: crypto.randomUUID() })),
+        }
+        const questions = [
+          ...g.questions.slice(0, idx + 1),
+          copy,
+          ...g.questions.slice(idx + 1),
+        ]
+        return { ...g, questions, updatedAt: now }
+      }),
+    }))
+
+    async function persist() {
+      const game = stateRef.current.games.find((g) => g.id === gameId)
+      if (!game) return
+      const idx = game.questions.findIndex((q) => q.id === questionId)
+      if (idx === -1) return
+      const copy = game.questions[idx + 1]
+      if (!copy) return
+
+      const { error: qError } = await supabase!.from('questions').insert({
+        id: copy.id,
+        game_id: gameId,
+        position: idx + 1,
+        type: copy.type,
+        prompt: copy.prompt,
+        emoji_prompt: copy.emojiPrompt ?? null,
+        image_url: copy.imageUrl ?? null,
+        image_reveal_config: copy.imageRevealConfig,
+        accepted_answer: copy.acceptedAnswer ?? null,
+        slide_layout: copy.slideLayout ?? 'auto',
+        time_limit_seconds: copy.timeLimitSeconds,
+        points: copy.points,
+        is_demo: copy.isDemo,
+        is_tie_breaker: copy.isTieBreaker,
+      })
+      if (qError) { console.error('duplicateQuestion:', qError); return }
+
+      if (copy.options.length > 0) {
+        await supabase!.from('question_options').insert(
+          copy.options.map((opt, i) => ({
+            id: opt.id,
+            question_id: copy.id,
+            position: i,
+            label: opt.label,
+            image_url: opt.imageUrl ?? null,
+            is_correct: opt.isCorrect,
+          })),
+        )
+      }
+      await supabase!.from('games').update({ updated_at: now }).eq('id', gameId)
+    }
+
+    persist()
+  }, [])
+
   const deleteQuestion = useCallback((gameId: string, questionId: string) => {
     if (!supabase) return
     setState((c) => ({
@@ -873,6 +942,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       createGame,
       updateGameMeta,
       saveQuestion,
+      duplicateQuestion,
       deleteQuestion,
       reorderQuestion,
       moveQuestionToEnd,
@@ -897,7 +967,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     }),
     [
       state,
-      createGame, updateGameMeta, saveQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd,
+      createGame, updateGameMeta, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd,
       createSession, startSession, pauseSession, resumeSession, revealMoreImage,
       endCurrentQuestion, goToNextQuestion, endSession, joinSession, removePlayer,
       submitAnswer, scoreTextAnswer, resetDemo,
