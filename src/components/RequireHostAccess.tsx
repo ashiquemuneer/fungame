@@ -5,8 +5,12 @@ import { useHostAccess } from '../state/host-access'
 
 export function RequireHostAccess() {
   const location = useLocation()
-  const { isHostAuthenticated } = useGameStore()
+  const { isHostAuthenticated, authLoading } = useGameStore()
   const { isUnlocked } = useHostAccess()
+
+  // Wait for Supabase session check to complete before deciding to redirect.
+  // Without this, the host gets kicked to login on every page load.
+  if (isSupabaseConfigured && authLoading) return null
 
   const allowed = isSupabaseConfigured ? isHostAuthenticated : isUnlocked
 

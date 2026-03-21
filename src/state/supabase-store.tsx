@@ -380,6 +380,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [hostEmail, setHostEmail] = useState<string | null>(null)
   const [isHostAuthenticated, setIsHostAuthenticated] = useState(false)
+  const [authLoading, setAuthLoading] = useState(true)
 
   useEffect(() => {
     stateRef.current = state
@@ -408,25 +409,29 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
         // else: not signed in — host will use login page, player will auth in joinSession
       } catch {
         // network timeout, stay null
+      } finally {
+        setAuthLoading(false)
       }
     }
 
     init()
   }, [])
 
-  // Load state once signed in; seed demo game on first login
+  // Load state once signed in; seed demo game on first host login only
   useEffect(() => {
     if (!userId) return
     loadAll(userId)
       .then(async (loaded) => {
-        if (loaded.games.length === 0) {
+        // Only seed for email-authenticated hosts, never for anonymous players
+        if (loaded.games.length === 0 && isHostAuthenticated) {
           await seedDemoGame(userId)
           return loadAll(userId)
         }
         return loaded
       })
       .then(setState)
-      .catch(() => setState({ games: [], sessions: [], players: [], answers: [] }))
+      .catch((err) => console.error('loadAll failed:', err))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
   // Debounced refresh helper
@@ -964,10 +969,11 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
 
       const { session_id: sessionId, player_id: playerId } = data[0]
 
-      // Refresh state so PlayPage can find the session/game
-      setUserId(user.id)
+      // Load state BEFORE setting userId — prevents the userId useEffect from
+      // running a concurrent loadAll that races and overwrites this result.
       const newState = await loadAll(user.id)
       setState(newState)
+      setUserId(user.id) // set after setState so realtime subscriptions start cleanly
 
       return { sessionId, playerId }
     } catch (err) {
@@ -1065,7 +1071,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       setUserId(data.user.id)
       setHostEmail(data.user.email ?? null)
       setIsHostAuthenticated(true)
-      loadAll(data.user.id).then(setState)
+      // State is loaded by the userId+isHostAuthenticated useEffect — no duplicate loadAll needed
     }
     return null
   }, [])
@@ -1173,6 +1179,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       inviteCollaborator,
       hostEmail,
       isHostAuthenticated,
+      authLoading,
     }),
     [
       state,
@@ -1181,7 +1188,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       endCurrentQuestion, goToNextQuestion, endSession, joinSession, removePlayer,
       submitAnswer, scoreTextAnswer, resetDemo,
       getGame, getSession, getPlayersForSession, getAnswersForSessionQuestion, getLeaderboard,
-      signUp, signIn, signOutCb, inviteCollaborator, hostEmail, isHostAuthenticated,
+      signUp, signIn, signOutCb, inviteCollaborator, hostEmail, isHostAuthenticated, authLoading,
     ],
   )
 

@@ -60,6 +60,7 @@ export interface GameStoreValue {
   inviteCollaborator: (gameId: string, email: string) => Promise<string | null>
   hostEmail: string | null
   isHostAuthenticated: boolean
+  authLoading: boolean
 }
 
 export const GameStoreContext = createContext<GameStoreValue | null>(null)
@@ -866,6 +867,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       inviteCollaborator,
       hostEmail: null,
       isHostAuthenticated: false,
+      authLoading: false,
     }),
     [
       state,
