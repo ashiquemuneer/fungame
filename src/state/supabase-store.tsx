@@ -966,7 +966,8 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
 
       // Refresh state so PlayPage can find the session/game
       setUserId(user.id)
-      loadAll(user.id).then(setState)
+      const newState = await loadAll(user.id)
+      setState(newState)
 
       return { sessionId, playerId }
     } catch (err) {
