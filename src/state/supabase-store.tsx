@@ -276,18 +276,23 @@ async function loadAll(userId: string): Promise<AppState> {
   if (!supabase) return { games: [], sessions: [], players: [], answers: [] }
 
   // 1. Games I host
-  const { data: hostGamesData } = await supabase
+  const { data: hostGamesData, error: gamesErr } = await supabase
     .from('games')
     .select(GAME_SELECT)
     .eq('host_user_id', userId)
     .order('created_at', { ascending: false })
 
+  if (gamesErr) console.error('[loadAll] games query failed:', gamesErr)
+  console.log('[loadAll] userId:', userId, 'hostGamesData count:', hostGamesData?.length ?? 'null/error')
+
   // 2. Sessions I host
-  const { data: hostSessionData } = await supabase
+  const { data: hostSessionData, error: sessionsErr } = await supabase
     .from('sessions')
     .select('*')
     .eq('host_user_id', userId)
     .order('created_at', { ascending: false })
+
+  if (sessionsErr) console.error('[loadAll] sessions query failed:', sessionsErr)
 
   // 3. Sessions where I'm a player
   const { data: memberships } = await supabase
