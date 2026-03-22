@@ -28,6 +28,7 @@ export interface GameStoreValue {
   createGame: (title: string, description: string) => string
   updateGameMeta: (gameId: string, patch: Pick<Game, 'title' | 'description' | 'status'> & Partial<Pick<Game, 'tags' | 'isPublic' | 'coverImage'>>) => void
   deleteGame: (gameId: string) => void
+  duplicateGame: (gameId: string) => string | null
   getSessionResults: (sessionId: string) => SessionResult[]
   saveQuestion: (gameId: string, draft: QuestionDraft, questionId?: string) => void
   duplicateQuestion: (gameId: string, questionId: string) => void
@@ -269,6 +270,31 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       games: current.games.filter((game) => game.id !== gameId),
       sessions: current.sessions.filter((session) => session.gameId !== gameId),
     }))
+  }, [])
+
+  const duplicateGame = useCallback((gameId: string): string | null => {
+    let newId: string | null = null
+    setState((current) => {
+      const source = current.games.find((g) => g.id === gameId)
+      if (!source) return current
+      const now = new Date().toISOString()
+      newId = generateId('game')
+      const clone = {
+        ...source,
+        id: newId,
+        title: `${source.title} (copy)`,
+        status: 'draft' as const,
+        createdAt: now,
+        updatedAt: now,
+        questions: source.questions.map((q) => ({
+          ...q,
+          id: generateId('q'),
+          options: q.options.map((o) => ({ ...o, id: generateId('opt') })),
+        })),
+      }
+      return { ...current, games: [clone, ...current.games] }
+    })
+    return newId
   }, [])
 
   const saveQuestion = useCallback(
@@ -856,6 +882,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       createGame,
       updateGameMeta,
       deleteGame,
+      duplicateGame,
       saveQuestion,
       duplicateQuestion,
       deleteQuestion,
@@ -893,6 +920,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       createGame,
       updateGameMeta,
       deleteGame,
+      duplicateGame,
       saveQuestion,
       duplicateQuestion,
       deleteQuestion,

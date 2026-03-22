@@ -183,21 +183,62 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
         <section className="rounded-[1.35rem] border border-white/10 bg-black/15 p-3">
           <p className="text-sm uppercase tracking-[0.25em] text-white/45">Slide settings</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <label className="space-y-2 text-sm text-white/80 sm:col-span-2">
+            <div className="space-y-2 text-sm text-white/80 sm:col-span-2">
               <span>Question type</span>
-              <select
-                className="input"
-                value={draft.type}
-                onChange={(event) => handleTypeChange(event.target.value as QuestionType)}
-              >
-                <option value="mcq">Multiple choice</option>
-                <option value="true_false">True / False</option>
-                <option value="short_text">Short text</option>
-                <option value="emoji">Emoji guess</option>
-                <option value="image_guess">Guess the name from image</option>
-                <option value="section">Section slide</option>
-              </select>
-            </label>
+              {/* ── Grouped type picker ── */}
+              <div className="space-y-3 pt-1">
+                {/* Quiz questions */}
+                <div>
+                  <p className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-white/35">Quiz</p>
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                    {([
+                      { value: 'mcq',        label: 'Multiple choice', emoji: '🔘' },
+                      { value: 'true_false', label: 'True / False',    emoji: '✅' },
+                      { value: 'short_text', label: 'Short text',      emoji: '✏️' },
+                    ] as { value: QuestionType; label: string; emoji: string }[]).map(({ value, label, emoji }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => handleTypeChange(value)}
+                        className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-left text-xs font-medium transition ${
+                          draft.type === value
+                            ? 'border-orange-300/40 bg-orange-300/10 text-orange-200'
+                            : 'border-white/8 bg-white/4 text-white/60 hover:border-white/15 hover:bg-white/8 hover:text-white/80'
+                        }`}
+                      >
+                        <span className="text-base leading-none">{emoji}</span>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {/* Media / special */}
+                <div>
+                  <p className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-white/35">Media &amp; Special</p>
+                  <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                    {([
+                      { value: 'emoji',       label: 'Emoji guess',  emoji: '😄' },
+                      { value: 'image_guess', label: 'Image reveal', emoji: '🖼️' },
+                      { value: 'section',     label: 'Section slide', emoji: '📌' },
+                    ] as { value: QuestionType; label: string; emoji: string }[]).map(({ value, label, emoji }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => handleTypeChange(value)}
+                        className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-left text-xs font-medium transition ${
+                          draft.type === value
+                            ? 'border-orange-300/40 bg-orange-300/10 text-orange-200'
+                            : 'border-white/8 bg-white/4 text-white/60 hover:border-white/15 hover:bg-white/8 hover:text-white/80'
+                        }`}
+                      >
+                        <span className="text-base leading-none">{emoji}</span>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
 
             {draft.type !== 'section' && draft.type !== 'emoji' && draft.type !== 'image_guess' ? (
               <label className="space-y-2 text-sm text-white/80 sm:col-span-2">

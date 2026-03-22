@@ -544,6 +544,67 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       .then(({ error }) => { if (error) console.error('deleteGame:', error) })
   }, [])
 
+  const duplicateGame = useCallback((gameId: string): string | null => {
+    if (!supabase) return null
+    let newId: string | null = null
+    setState((c) => {
+      const source = c.games.find((g) => g.id === gameId)
+      if (!source) return c
+      const now = new Date().toISOString()
+      newId = crypto.randomUUID()
+      const clone = {
+        ...source,
+        id: newId,
+        title: `${source.title} (copy)`,
+        status: 'draft' as const,
+        createdAt: now,
+        updatedAt: now,
+        questions: source.questions.map((q) => ({
+          ...q,
+          id: crypto.randomUUID(),
+          options: q.options.map((o) => ({ ...o, id: crypto.randomUUID() })),
+        })),
+      }
+      return { ...c, games: [clone, ...c.games] }
+    })
+    // Persist clone to DB asynchronously
+    const cloned = newId
+    if (cloned) {
+      setTimeout(async () => {
+        const current = stateRef.current.games.find((g) => g.id === cloned)
+        if (!current || !supabase) return
+        const uid = (await supabase.auth.getUser()).data.user?.id
+        if (!uid) return
+        await supabase.from('games').insert({
+          id: current.id,
+          host_user_id: uid,
+          title: current.title,
+          description: current.description ?? '',
+          status: current.status,
+          created_at: current.createdAt,
+          updated_at: current.updatedAt,
+        })
+        for (const [pos, q] of current.questions.entries()) {
+          await supabase.from('questions').insert({
+            id: q.id, game_id: current.id, type: q.type, prompt: q.prompt,
+            emoji_prompt: q.emojiPrompt ?? null, image_url: q.imageUrl ?? null,
+            accepted_answer: q.acceptedAnswer ?? null, slide_layout: q.slideLayout ?? 'auto',
+            time_limit_seconds: q.timeLimitSeconds, points: q.points,
+            is_demo: q.isDemo, is_tie_breaker: q.isTieBreaker, position: pos,
+            image_reveal_config: q.imageRevealConfig,
+          })
+          for (const o of q.options) {
+            await supabase.from('question_options').insert({
+              id: o.id, question_id: q.id, label: o.label,
+              image_url: o.imageUrl ?? null, is_correct: o.isCorrect,
+            })
+          }
+        }
+      }, 0)
+    }
+    return newId
+  }, [])
+
   const saveQuestion = useCallback((gameId: string, draft: QuestionDraft, questionId?: string) => {
     if (!supabase) return
     const sanitized = sanitizeDraft(draft)
@@ -1221,6 +1282,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       createGame,
       updateGameMeta,
       deleteGame,
+      duplicateGame,
       saveQuestion,
       duplicateQuestion,
       deleteQuestion,
@@ -1255,7 +1317,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     }),
     [
       state,
-      createGame, updateGameMeta, deleteGame, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd,
+      createGame, updateGameMeta, deleteGame, duplicateGame, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd,
       createSession, startSession, pauseSession, resumeSession, revealMoreImage,
       endCurrentQuestion, goToNextQuestion, endSession, joinSession, removePlayer,
       submitAnswer, scoreTextAnswer, resetDemo,

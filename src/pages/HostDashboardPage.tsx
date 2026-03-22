@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import {
   ArrowRight,
   BookOpen,
+  Copy,
   CopyPlus,
   Edit3,
   MessageSquare,
@@ -9,6 +10,7 @@ import {
   Play,
   RadioTower,
   RotateCcw,
+  SortAsc,
   Trash2,
   Users,
   Zap,
@@ -31,68 +33,110 @@ import {
   useToast,
 } from '../components/ui'
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type SortKey = 'newest' | 'oldest' | 'name_asc' | 'name_desc'
+
 // ─── Quick-start chip templates ───────────────────────────────────────────────
 
 const QUICK_STARTS = [
-  { label: 'Office trivia',    emoji: '🏢', title: 'Office Trivia',     description: 'Fun facts about our team and workplace.' },
-  { label: 'Icebreaker round', emoji: '🧊', title: 'Icebreaker Round',  description: 'Light questions to warm up the room.' },
-  { label: 'Team quiz',        emoji: '🏆', title: 'Team Knowledge Quiz', description: 'Test what the team knows.' },
-  { label: 'Fun emoji game',   emoji: '😄', title: 'Emoji Challenge',   description: 'Answer with emojis — anything goes.' },
+  { label: 'Office trivia',    emoji: '🏢', title: 'Office Trivia',       description: 'Fun facts about our team and workplace.' },
+  { label: 'Icebreaker round', emoji: '🧊', title: 'Icebreaker Round',    description: 'Light questions to warm up the room.'      },
+  { label: 'Team quiz',        emoji: '🏆', title: 'Team Knowledge Quiz', description: 'Test what the team knows.'                 },
+  { label: 'Fun emoji game',   emoji: '😄', title: 'Emoji Challenge',     description: 'Answer with emojis — anything goes.'       },
+]
+
+// ─── Popular templates ────────────────────────────────────────────────────────
+
+const TEMPLATES = [
+  {
+    emoji: '🌍',
+    title: 'World Geography',
+    description: 'Capitals, flags and landmarks.',
+    questions: 5,
+    color: 'from-sky-500/10 to-sky-400/5 border-sky-400/15',
+  },
+  {
+    emoji: '🎬',
+    title: 'Movie Night Trivia',
+    description: 'Films, actors and iconic quotes.',
+    questions: 6,
+    color: 'from-violet-500/10 to-violet-400/5 border-violet-400/15',
+  },
+  {
+    emoji: '🧠',
+    title: 'General Knowledge',
+    description: 'Mixed topics for all audiences.',
+    questions: 8,
+    color: 'from-emerald-500/10 to-emerald-400/5 border-emerald-400/15',
+  },
+  {
+    emoji: '🏢',
+    title: 'Team Icebreaker',
+    description: 'Get to know your colleagues.',
+    questions: 5,
+    color: 'from-orange-500/10 to-orange-400/5 border-orange-400/15',
+  },
 ]
 
 // ─── Onboarding strip ─────────────────────────────────────────────────────────
 
 const HOW_IT_WORKS = [
-  { icon: BookOpen,   label: '1. Build',  description: 'Create a question set in your library.' },
-  { icon: QrCode,     label: '2. Host',   description: 'Start a room and share the QR code.'    },
-  { icon: Zap,        label: '3. Play',   description: 'Players join and answer in real time.'   },
+  { icon: BookOpen, label: '1. Build', description: 'Create a question set in your library.' },
+  { icon: QrCode,   label: '2. Host',  description: 'Start a room and share the QR code.'    },
+  { icon: Zap,      label: '3. Play',  description: 'Players join and answer in real time.'   },
 ]
+
+// ─── Sort helpers ─────────────────────────────────────────────────────────────
+
+const SORT_LABELS: Record<SortKey, string> = {
+  newest:    'Newest first',
+  oldest:    'Oldest first',
+  name_asc:  'Name A → Z',
+  name_desc: 'Name Z → A',
+}
+
+function applySortKey<T extends { title: string; createdAt?: string; updatedAt?: string }>(
+  items: T[],
+  key: SortKey,
+): T[] {
+  const arr = [...items]
+  if (key === 'newest') return arr.sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() - new Date(a.updatedAt ?? a.createdAt ?? 0).getTime())
+  if (key === 'oldest') return arr.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime())
+  if (key === 'name_asc')  return arr.sort((a, b) => a.title.localeCompare(b.title))
+  if (key === 'name_desc') return arr.sort((a, b) => b.title.localeCompare(a.title))
+  return arr
+}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function HostDashboardPage() {
-  const navigate = useNavigate()
+  const navigate    = useNavigate()
   const [searchParams] = useSearchParams()
   const searchQuery = searchParams.get('q')?.toLowerCase() ?? ''
 
-  const { state, hostEmail, createGame, deleteGame, createSession, getGame, resetDemo } = useGameStore()
+  const { state, hostEmail, createGame, deleteGame, duplicateGame, createSession, getGame, resetDemo } = useGameStore()
   const toast = useToast()
 
-  // Create game form
-  const [title, setTitle]       = useState('')
-  const [description, setDesc]  = useState('')
+  const [title,    setTitle]   = useState('')
+  const [description, setDesc] = useState('')
+  const [sortKey,  setSortKey] = useState<SortKey>('newest')
 
-  // Delete game confirm
   const [deleteTarget,  setDeleteTarget]  = useState<{ id: string; title: string } | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [startingRoom,  setStartingRoom]  = useState<string | null>(null)
 
-  // Start room loading (per game)
-  const [startingRoom, setStartingRoom] = useState<string | null>(null)
-
-  // Derived: sessions with game data
   const sessionsWithGame = useMemo(
     () => state.sessions.map((session) => ({ session, game: getGame(session.gameId) })),
     [getGame, state.sessions],
   )
 
-  // Derived: stats
   const stats = [
-    { label: 'Question sets', value: state.games.length,                                             icon: BookOpen    },
-    { label: 'Open rooms',    value: state.sessions.filter((s) => s.state !== 'completed').length,   icon: RadioTower  },
-    { label: 'Players total', value: state.players.length,                                            icon: Users       },
+    { label: 'Question sets', value: state.games.length,                                             icon: BookOpen   },
+    { label: 'Open rooms',    value: state.sessions.filter((s) => s.state !== 'completed').length,   icon: RadioTower },
+    { label: 'Players total', value: state.players.length,                                            icon: Users      },
   ]
 
-  // Derived: filtered games for library
-  const filteredGames = useMemo(() => {
-    if (!searchQuery) return state.games
-    return state.games.filter(
-      (g) =>
-        g.title.toLowerCase().includes(searchQuery) ||
-        g.description?.toLowerCase().includes(searchQuery),
-    )
-  }, [state.games, searchQuery])
-
-  // Derived: recently edited (last 4 by updatedAt)
   const recentGames = useMemo(
     () =>
       [...state.games]
@@ -101,7 +145,17 @@ export function HostDashboardPage() {
     [state.games],
   )
 
-  // Helper: start a room for a game
+  const filteredGames = useMemo(() => {
+    const searched = searchQuery
+      ? state.games.filter(
+          (g) =>
+            g.title.toLowerCase().includes(searchQuery) ||
+            g.description?.toLowerCase().includes(searchQuery),
+        )
+      : state.games
+    return applySortKey(searched, sortKey)
+  }, [state.games, searchQuery, sortKey])
+
   const handleStartRoom = async (gameId: string) => {
     setStartingRoom(gameId)
     try {
@@ -113,7 +167,13 @@ export function HostDashboardPage() {
     }
   }
 
-  // Greeting name from email
+  const handleDuplicate = (gameId: string, gameTitle: string) => {
+    const newId = duplicateGame(gameId)
+    if (newId) {
+      toast.success('Game duplicated', `"${gameTitle} (copy)" is ready to edit.`)
+    }
+  }
+
   const firstName = hostEmail?.split('@')[0] ?? 'there'
 
   return (
@@ -188,16 +248,12 @@ export function HostDashboardPage() {
           </div>
         </div>
 
-        {/* Quick-start chips */}
         <div className="mb-4 flex flex-wrap gap-2">
           {QUICK_STARTS.map((qs) => (
             <button
               key={qs.label}
               type="button"
-              onClick={() => {
-                const id = createGame(qs.title, qs.description)
-                navigate(`/host/games/${id}`)
-              }}
+              onClick={() => { const id = createGame(qs.title, qs.description); navigate(`/host/games/${id}`) }}
               className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs font-medium text-white/70 transition hover:border-orange-300/25 hover:bg-orange-300/8 hover:text-orange-200"
             >
               <span>{qs.emoji}</span>
@@ -206,7 +262,6 @@ export function HostDashboardPage() {
           ))}
         </div>
 
-        {/* Custom create form */}
         <form
           className="flex flex-col gap-3 sm:flex-row"
           onSubmit={(e) => {
@@ -229,9 +284,7 @@ export function HostDashboardPage() {
             value={description}
             onChange={(e) => setDesc(e.target.value)}
           />
-          <button className="button-primary shrink-0" type="submit">
-            Create game
-          </button>
+          <button className="button-primary shrink-0" type="submit">Create game</button>
         </form>
 
         <div className="mt-3 flex justify-end">
@@ -239,6 +292,30 @@ export function HostDashboardPage() {
             <RotateCcw className="size-3.5" />
             Reset demo data
           </button>
+        </div>
+      </section>
+
+      {/* ── Popular templates ── */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/45">Popular templates</h2>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {TEMPLATES.map((tpl) => (
+            <button
+              key={tpl.title}
+              type="button"
+              onClick={() => { const id = createGame(tpl.title, tpl.description); navigate(`/host/games/${id}`) }}
+              className={`group flex flex-col items-start gap-2 rounded-3xl border bg-gradient-to-br p-4 text-left transition hover:scale-[1.02] ${tpl.color}`}
+            >
+              <span className="text-2xl">{tpl.emoji}</span>
+              <div>
+                <p className="text-sm font-semibold text-white/85 group-hover:text-white transition">{tpl.title}</p>
+                <p className="mt-0.5 text-xs leading-5 text-white/40">{tpl.description}</p>
+              </div>
+              <span className="mt-auto text-[11px] text-white/30">{tpl.questions} questions</span>
+            </button>
+          ))}
         </div>
       </section>
 
@@ -262,7 +339,7 @@ export function HostDashboardPage() {
 
       {/* ── Game library ── */}
       <section id="game-library">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-white/40">Games</p>
             <h2 className="text-xl font-semibold text-white">
@@ -274,13 +351,27 @@ export function HostDashboardPage() {
               )}
             </h2>
           </div>
-          <div className="flex items-center gap-2">
-            <Tooltip content="Reset demo data" side="left">
-              <button onClick={resetDemo} className="button-ghost rounded-xl border border-white/8 px-2.5 py-2">
-                <RotateCcw className="size-4" />
+
+          {/* Sort dropdown */}
+          <DropdownMenu
+            trigger={
+              <button className="button-ghost flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-white/55 hover:text-white/80">
+                <SortAsc className="size-3.5" />
+                {SORT_LABELS[sortKey]}
               </button>
-            </Tooltip>
-          </div>
+            }
+            align="right"
+          >
+            {(Object.entries(SORT_LABELS) as [SortKey, string][]).map(([key, label]) => (
+              <DropdownItem
+                key={key}
+                onClick={() => setSortKey(key)}
+              >
+                {label}
+                {sortKey === key && <span className="ml-auto text-orange-300">✓</span>}
+              </DropdownItem>
+            ))}
+          </DropdownMenu>
         </div>
 
         <div className="space-y-2.5">
@@ -305,7 +396,6 @@ export function HostDashboardPage() {
               return (
                 <div key={game.id} className="panel overflow-hidden p-4">
                   <div className="flex items-start gap-4">
-                    {/* Left: game info */}
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-lg font-semibold text-white">{game.title}</h3>
@@ -314,16 +404,13 @@ export function HostDashboardPage() {
                       {game.description && (
                         <p className="line-clamp-1 text-sm text-white/50">{game.description}</p>
                       )}
-                      <div className="flex items-center gap-3">
-                        <span className={`flex items-center gap-1.5 text-xs ${hasQuestions ? 'text-white/40' : 'text-amber-300'}`}>
-                          <MessageSquare className="size-3" />
-                          {game.questions.length} question{game.questions.length !== 1 ? 's' : ''}
-                          {!hasQuestions && ' — add questions first'}
-                        </span>
-                      </div>
+                      <span className={`flex items-center gap-1.5 text-xs ${hasQuestions ? 'text-white/40' : 'text-amber-300'}`}>
+                        <MessageSquare className="size-3" />
+                        {game.questions.length} question{game.questions.length !== 1 ? 's' : ''}
+                        {!hasQuestions && ' — add questions first'}
+                      </span>
                     </div>
 
-                    {/* Right: actions */}
                     <div className="flex shrink-0 items-center gap-2">
                       <Link className="button-secondary hidden sm:inline-flex" to={`/host/games/${game.id}`}>
                         <Edit3 className="size-4" />
@@ -348,7 +435,6 @@ export function HostDashboardPage() {
                         </button>
                       </Tooltip>
 
-                      {/* Three-dot context menu */}
                       <DropdownMenu
                         trigger={
                           <button className="button-ghost rounded-full border border-white/10 px-2.5 py-2.5 text-white/50 hover:text-white/80">
@@ -360,11 +446,10 @@ export function HostDashboardPage() {
                         <DropdownItem icon={<Edit3 />} onClick={() => navigate(`/host/games/${game.id}`)}>
                           Edit set
                         </DropdownItem>
-                        <DropdownItem
-                          icon={<Play />}
-                          onClick={() => handleStartRoom(game.id)}
-                          disabled={!hasQuestions}
-                        >
+                        <DropdownItem icon={<Copy />} onClick={() => handleDuplicate(game.id, game.title)}>
+                          Duplicate
+                        </DropdownItem>
+                        <DropdownItem icon={<Play />} onClick={() => handleStartRoom(game.id)} disabled={!hasQuestions}>
                           Start room
                         </DropdownItem>
                         <DropdownSeparator />
@@ -400,25 +485,16 @@ export function HostDashboardPage() {
               <div key={session.id} className="panel p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="font-mono text-xs uppercase tracking-[0.3em] text-orange-200/80">
-                      {session.roomCode}
-                    </p>
-                    <h3 className="mt-2 truncate text-base font-semibold text-white">
-                      {game?.title ?? 'Untitled game'}
-                    </h3>
+                    <p className="font-mono text-xs uppercase tracking-[0.3em] text-orange-200/80">{session.roomCode}</p>
+                    <h3 className="mt-2 truncate text-base font-semibold text-white">{game?.title ?? 'Untitled game'}</h3>
                     <div className="mt-1.5 flex items-center gap-2">
                       <SessionStateBadge state={session.state} />
                       <span className="text-xs text-white/35">·</span>
                       <span className="text-xs text-white/45">{formatDate(session.createdAt)}</span>
                     </div>
                   </div>
-
                   <Link className="button-secondary shrink-0" to={`/host/sessions/${session.id}`}>
-                    {session.state === 'live' ? (
-                      <><Play className="size-4" />Open</>
-                    ) : (
-                      <>View<ArrowRight className="size-4" /></>
-                    )}
+                    {session.state === 'live' ? <><Play className="size-4" />Open</> : <>View<ArrowRight className="size-4" /></>}
                   </Link>
                 </div>
               </div>

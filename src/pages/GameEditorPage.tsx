@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, Copy, PencilLine, Plus, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Copy, PencilLine, Plus, Trash2, Users } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { QuestionForm } from '../components/QuestionForm'
 import { cn, formatDate } from '../lib/utils'
 import { useGameStore } from '../state/game-store'
 import { isSupabaseConfigured } from '../lib/supabase'
-import { ConfirmDialog, useToast } from '../components/ui'
+import { ConfirmDialog, Modal, useToast } from '../components/ui'
 import type { Question } from '../types/game'
 
 export function GameEditorPage() {
   const { gameId = '' } = useParams()
-  const { getGame, updateGameMeta, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd, inviteCollaborator } =
+  const { state, getGame, updateGameMeta, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd, inviteCollaborator } =
     useGameStore()
   const toast = useToast()
   const game = getGame(gameId)
@@ -20,10 +20,16 @@ export function GameEditorPage() {
     null,
   )
   const [deleteQuestionTarget, setDeleteQuestionTarget] = useState<Question | null>(null)
+  const [copyTarget, setCopyTarget] = useState<Question | null>(null)
   const [shareEmail, setShareEmail] = useState('')
   const [shareError, setShareError] = useState('')
   const [shareSuccess, setShareSuccess] = useState('')
   const [shareLoading, setShareLoading] = useState(false)
+
+  const otherGames = useMemo(
+    () => state.games.filter((g) => g.id !== gameId),
+    [state.games, gameId],
+  )
 
   const orderedQuestions = useMemo(() => [...(game?.questions ?? [])], [game?.questions])
 
@@ -291,6 +297,14 @@ export function GameEditorPage() {
                       <Copy className="size-4" />
                     </button>
                     <button
+                      className="button-ghost rounded-full border border-white/10"
+                      title="Copy to another game"
+                      type="button"
+                      onClick={() => setCopyTarget(question)}
+                    >
+                      <ArrowRight className="size-4" />
+                    </button>
+                    <button
                       className="button-ghost rounded-full border border-white/10 hover:border-rose-400/30 hover:bg-rose-400/10 hover:text-rose-300"
                       title="Delete slide"
                       type="button"
@@ -388,6 +402,54 @@ export function GameEditorPage() {
         cancelLabel="Keep it"
         variant="danger"
       />
+
+      {/* ── Copy question to another game ── */}
+      <Modal
+        open={!!copyTarget}
+        onClose={() => setCopyTarget(null)}
+        title="Copy to another game"
+        description="Choose which game to copy this question into."
+        size="sm"
+      >
+        {otherGames.length === 0 ? (
+          <p className="py-4 text-center text-sm text-white/45">No other games found. Create one first.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {otherGames.map((g) => (
+              <button
+                key={g.id}
+                type="button"
+                className="flex w-full items-center justify-between rounded-2xl border border-white/8 bg-white/4 px-4 py-3 text-left transition hover:border-orange-300/25 hover:bg-orange-300/8"
+                onClick={() => {
+                  if (!copyTarget) return
+                  saveQuestion(g.id, {
+                    type: copyTarget.type,
+                    prompt: copyTarget.prompt,
+                    emojiPrompt: copyTarget.emojiPrompt ?? '',
+                    imageUrl: copyTarget.imageUrl ?? '',
+                    acceptedAnswer: copyTarget.acceptedAnswer ?? '',
+                    options: copyTarget.options,
+                    timeLimitSeconds: copyTarget.timeLimitSeconds,
+                    points: copyTarget.points,
+                    isDemo: false,
+                    isTieBreaker: false,
+                    slideLayout: copyTarget.slideLayout ?? 'auto',
+                    imageRevealConfig: copyTarget.imageRevealConfig,
+                  })
+                  toast.success('Question copied', `Added to "${g.title}".`)
+                  setCopyTarget(null)
+                }}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-white/80">{g.title}</p>
+                  <p className="text-xs text-white/35">{g.questions.length} question{g.questions.length !== 1 ? 's' : ''}</p>
+                </div>
+                <ArrowRight className="size-4 shrink-0 text-white/30" />
+              </button>
+            ))}
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }
