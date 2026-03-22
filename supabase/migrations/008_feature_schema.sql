@@ -210,14 +210,17 @@ create policy "hosts_upload_question_images"
     and coalesce((auth.jwt()->>'is_anonymous')::boolean, false) = false
   );
 
--- Storage RLS: file owner can update / delete their own uploads
-drop policy if exists "hosts_manage_own_question_images" on storage.objects;
-create policy "hosts_manage_own_question_images"
-  on storage.objects for update, delete to authenticated
-  using (
-    bucket_id = 'question-images'
-    and owner = auth.uid()
-  );
+-- Storage RLS: file owner can update their own uploads
+drop policy if exists "hosts_update_own_question_images" on storage.objects;
+create policy "hosts_update_own_question_images"
+  on storage.objects for update to authenticated
+  using (bucket_id = 'question-images' and owner = auth.uid());
+
+-- Storage RLS: file owner can delete their own uploads
+drop policy if exists "hosts_delete_own_question_images" on storage.objects;
+create policy "hosts_delete_own_question_images"
+  on storage.objects for delete to authenticated
+  using (bucket_id = 'question-images' and owner = auth.uid());
 
 -- Storage RLS: public read (bucket is public so CDN handles it, but policy belt-and-suspenders)
 drop policy if exists "public_read_question_images" on storage.objects;

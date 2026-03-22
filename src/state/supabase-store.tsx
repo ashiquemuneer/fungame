@@ -531,6 +531,19 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       .then(({ error }) => { if (error) console.error('updateGameMeta:', error) })
   }, [])
 
+  const deleteGame = useCallback((gameId: string) => {
+    if (!supabase) return
+    // Optimistic: remove immediately from local state
+    setState((c) => ({
+      ...c,
+      games: c.games.filter((g) => g.id !== gameId),
+      sessions: c.sessions.filter((s) => s.gameId !== gameId),
+    }))
+    // questions/options cascade-delete via DB FK ON DELETE CASCADE
+    supabase.from('games').delete().eq('id', gameId)
+      .then(({ error }) => { if (error) console.error('deleteGame:', error) })
+  }, [])
+
   const saveQuestion = useCallback((gameId: string, draft: QuestionDraft, questionId?: string) => {
     if (!supabase) return
     const sanitized = sanitizeDraft(draft)
@@ -1207,6 +1220,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       state,
       createGame,
       updateGameMeta,
+      deleteGame,
       saveQuestion,
       duplicateQuestion,
       deleteQuestion,
@@ -1241,7 +1255,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     }),
     [
       state,
-      createGame, updateGameMeta, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd,
+      createGame, updateGameMeta, deleteGame, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd,
       createSession, startSession, pauseSession, resumeSession, revealMoreImage,
       endCurrentQuestion, goToNextQuestion, endSession, joinSession, removePlayer,
       submitAnswer, scoreTextAnswer, resetDemo,

@@ -5,18 +5,21 @@ import { QuestionForm } from '../components/QuestionForm'
 import { cn, formatDate } from '../lib/utils'
 import { useGameStore } from '../state/game-store'
 import { isSupabaseConfigured } from '../lib/supabase'
+import { ConfirmDialog, useToast } from '../components/ui'
 import type { Question } from '../types/game'
 
 export function GameEditorPage() {
   const { gameId = '' } = useParams()
   const { getGame, updateGameMeta, saveQuestion, duplicateQuestion, deleteQuestion, reorderQuestion, moveQuestionToEnd, inviteCollaborator } =
     useGameStore()
+  const toast = useToast()
   const game = getGame(gameId)
   const [editingQuestion, setEditingQuestion] = useState<Question | undefined>()
   const [draggedQuestionId, setDraggedQuestionId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<{ id: string; placement: 'before' | 'after' } | null>(
     null,
   )
+  const [deleteQuestionTarget, setDeleteQuestionTarget] = useState<Question | null>(null)
   const [shareEmail, setShareEmail] = useState('')
   const [shareError, setShareError] = useState('')
   const [shareSuccess, setShareSuccess] = useState('')
@@ -288,15 +291,10 @@ export function GameEditorPage() {
                       <Copy className="size-4" />
                     </button>
                     <button
-                      className="button-ghost rounded-full border border-white/10"
+                      className="button-ghost rounded-full border border-white/10 hover:border-rose-400/30 hover:bg-rose-400/10 hover:text-rose-300"
                       title="Delete slide"
                       type="button"
-                      onClick={() => {
-                        deleteQuestion(game.id, question.id)
-                        if (editingQuestion?.id === question.id) {
-                          setEditingQuestion(undefined)
-                        }
-                      }}
+                      onClick={() => setDeleteQuestionTarget(question)}
                     >
                       <Trash2 className="size-4" />
                     </button>
@@ -373,6 +371,23 @@ export function GameEditorPage() {
           </div>
         </div>
       </section>
+
+      <ConfirmDialog
+        open={!!deleteQuestionTarget}
+        onClose={() => setDeleteQuestionTarget(null)}
+        onConfirm={() => {
+          if (!deleteQuestionTarget) return
+          deleteQuestion(game.id, deleteQuestionTarget.id)
+          if (editingQuestion?.id === deleteQuestionTarget.id) setEditingQuestion(undefined)
+          toast.success('Question deleted')
+          setDeleteQuestionTarget(null)
+        }}
+        title="Delete this question?"
+        description={deleteQuestionTarget ? `"${deleteQuestionTarget.prompt.slice(0, 80)}${deleteQuestionTarget.prompt.length > 80 ? '…' : ''}" will be permanently removed.` : undefined}
+        confirmLabel="Delete"
+        cancelLabel="Keep it"
+        variant="danger"
+      />
     </div>
   )
 }

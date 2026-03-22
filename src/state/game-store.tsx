@@ -27,6 +27,7 @@ export interface GameStoreValue {
   state: AppState
   createGame: (title: string, description: string) => string
   updateGameMeta: (gameId: string, patch: Pick<Game, 'title' | 'description' | 'status'> & Partial<Pick<Game, 'tags' | 'isPublic' | 'coverImage'>>) => void
+  deleteGame: (gameId: string) => void
   getSessionResults: (sessionId: string) => SessionResult[]
   saveQuestion: (gameId: string, draft: QuestionDraft, questionId?: string) => void
   duplicateQuestion: (gameId: string, questionId: string) => void
@@ -261,6 +262,14 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
     },
     [],
   )
+
+  const deleteGame = useCallback((gameId: string) => {
+    setState((current) => ({
+      ...current,
+      games: current.games.filter((game) => game.id !== gameId),
+      sessions: current.sessions.filter((session) => session.gameId !== gameId),
+    }))
+  }, [])
 
   const saveQuestion = useCallback(
     (gameId: string, draft: QuestionDraft, questionId?: string) => {
@@ -846,6 +855,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       state,
       createGame,
       updateGameMeta,
+      deleteGame,
       saveQuestion,
       duplicateQuestion,
       deleteQuestion,
@@ -882,6 +892,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       state,
       createGame,
       updateGameMeta,
+      deleteGame,
       saveQuestion,
       duplicateQuestion,
       deleteQuestion,
