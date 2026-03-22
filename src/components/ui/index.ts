@@ -16,3 +16,4 @@ export {
 export { ToastProvider, useToast }                   from './Toast'
 export { Tooltip }                                   from './Tooltip'
 export { Spinner, FullPageSpinner }                  from './Spinner'
+export { DropdownMenu, DropdownItem, DropdownSeparator } from './DropdownMenu'

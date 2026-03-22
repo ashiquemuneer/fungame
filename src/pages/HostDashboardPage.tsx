@@ -1,342 +1,433 @@
 import { useMemo, useState } from 'react'
 import {
   ArrowRight,
+  BookOpen,
   CopyPlus,
-  LayoutDashboard,
+  Edit3,
   MessageSquare,
-  MonitorCog,
+  MoreHorizontal,
   Play,
   RadioTower,
   RotateCcw,
   Trash2,
   Users,
+  Zap,
+  QrCode,
+  Lightbulb,
 } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { formatDate } from '../lib/utils'
 import { useGameStore } from '../state/game-store'
-import { ConfirmDialog, NoGamesEmpty, NoSessionsEmpty, SessionStateBadge, StatusBadge, Tooltip, useToast } from '../components/ui'
+import {
+  ConfirmDialog,
+  DropdownItem,
+  DropdownMenu,
+  DropdownSeparator,
+  NoGamesEmpty,
+  NoSessionsEmpty,
+  SessionStateBadge,
+  StatusBadge,
+  Tooltip,
+  useToast,
+} from '../components/ui'
+
+// ─── Quick-start chip templates ───────────────────────────────────────────────
+
+const QUICK_STARTS = [
+  { label: 'Office trivia',    emoji: '🏢', title: 'Office Trivia',     description: 'Fun facts about our team and workplace.' },
+  { label: 'Icebreaker round', emoji: '🧊', title: 'Icebreaker Round',  description: 'Light questions to warm up the room.' },
+  { label: 'Team quiz',        emoji: '🏆', title: 'Team Knowledge Quiz', description: 'Test what the team knows.' },
+  { label: 'Fun emoji game',   emoji: '😄', title: 'Emoji Challenge',   description: 'Answer with emojis — anything goes.' },
+]
+
+// ─── Onboarding strip ─────────────────────────────────────────────────────────
+
+const HOW_IT_WORKS = [
+  { icon: BookOpen,   label: '1. Build',  description: 'Create a question set in your library.' },
+  { icon: QrCode,     label: '2. Host',   description: 'Start a room and share the QR code.'    },
+  { icon: Zap,        label: '3. Play',   description: 'Players join and answer in real time.'   },
+]
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function HostDashboardPage() {
   const navigate = useNavigate()
-  const { state, createGame, deleteGame, createSession, getGame, resetDemo } = useGameStore()
-  const toast = useToast()
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
+  const [searchParams] = useSearchParams()
+  const searchQuery = searchParams.get('q')?.toLowerCase() ?? ''
 
-  // Delete game confirm dialog
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
+  const { state, hostEmail, createGame, deleteGame, createSession, getGame, resetDemo } = useGameStore()
+  const toast = useToast()
+
+  // Create game form
+  const [title, setTitle]       = useState('')
+  const [description, setDesc]  = useState('')
+
+  // Delete game confirm
+  const [deleteTarget,  setDeleteTarget]  = useState<{ id: string; title: string } | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
-  // Start room loading state (per game)
+  // Start room loading (per game)
   const [startingRoom, setStartingRoom] = useState<string | null>(null)
 
+  // Derived: sessions with game data
   const sessionsWithGame = useMemo(
-    () =>
-      state.sessions.map((session) => ({
-        session,
-        game: getGame(session.gameId),
-      })),
+    () => state.sessions.map((session) => ({ session, game: getGame(session.gameId) })),
     [getGame, state.sessions],
   )
 
+  // Derived: stats
   const stats = [
-    { label: 'Question sets', value: String(state.games.length), icon: LayoutDashboard },
-    {
-      label: 'Open rooms',
-      value: String(state.sessions.filter((session) => session.state !== 'completed').length),
-      icon: RadioTower,
-    },
-    { label: 'Players joined', value: String(state.players.length), icon: Users },
+    { label: 'Question sets', value: state.games.length,                                             icon: BookOpen    },
+    { label: 'Open rooms',    value: state.sessions.filter((s) => s.state !== 'completed').length,   icon: RadioTower  },
+    { label: 'Players total', value: state.players.length,                                            icon: Users       },
   ]
 
+  // Derived: filtered games for library
+  const filteredGames = useMemo(() => {
+    if (!searchQuery) return state.games
+    return state.games.filter(
+      (g) =>
+        g.title.toLowerCase().includes(searchQuery) ||
+        g.description?.toLowerCase().includes(searchQuery),
+    )
+  }, [state.games, searchQuery])
+
+  // Derived: recently edited (last 4 by updatedAt)
+  const recentGames = useMemo(
+    () =>
+      [...state.games]
+        .sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() - new Date(a.updatedAt ?? a.createdAt ?? 0).getTime())
+        .slice(0, 4),
+    [state.games],
+  )
+
+  // Helper: start a room for a game
+  const handleStartRoom = async (gameId: string) => {
+    setStartingRoom(gameId)
+    try {
+      const sessionId = await createSession(gameId)
+      if (!sessionId) { toast.error('Failed to create room', 'Check your connection and try again.'); return }
+      navigate(`/host/sessions/${sessionId}`)
+    } finally {
+      setStartingRoom(null)
+    }
+  }
+
+  // Greeting name from email
+  const firstName = hostEmail?.split('@')[0] ?? 'there'
+
   return (
-    <>
-      <div className="space-y-3">
-        <section className="panel overflow-hidden">
-          <div className="grid gap-0 xl:grid-cols-[1.25fr_0.75fr]">
-            <div className="border-b border-white/10 p-4 sm:p-5 xl:border-r xl:border-b-0">
-              <p className="text-sm uppercase tracking-[0.25em] text-orange-200/70">Host command center</p>
-              <h2 className="mt-4 max-w-3xl font-['Sora','Avenir_Next',sans-serif] text-4xl font-semibold leading-tight text-white xl:text-5xl">
-                Desktop-first control room for running your office game smoothly.
-              </h2>
-              <p className="mt-5 max-w-2xl text-base leading-8 text-white/65">
-                This dashboard is optimized for a larger screen so the host can build rounds, monitor
-                live rooms, and jump into the active session without fighting the layout. It still
-                collapses cleanly on smaller screens when you need it.
-              </p>
+    <div className="space-y-6">
 
-              <div className="mt-5 grid gap-2.5 md:grid-cols-3">
-                {stats.map((item) => (
-                  <div key={item.label} className="rounded-[1.75rem] border border-white/10 bg-black/20 p-5">
-                    <item.icon className="size-9 rounded-2xl bg-orange-300/15 p-2 text-orange-100" />
-                    <p className="mt-4 text-sm text-white/50">{item.label}</p>
-                    <p className="mt-2 text-4xl font-semibold text-white">{item.value}</p>
-                  </div>
-                ))}
+      {/* ── Welcome + stats ── */}
+      <section>
+        <h1 className="text-2xl font-semibold text-white">
+          Welcome back, <span className="text-orange-200">{firstName}</span>!
+        </h1>
+        <p className="mt-1 text-sm text-white/45">Here's what's happening with your games.</p>
+
+        <div className="mt-4 grid grid-cols-3 gap-3 sm:gap-4">
+          {stats.map(({ label, value, icon: Icon }) => (
+            <div key={label} className="panel flex items-center gap-3 p-4">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-orange-300/12 text-orange-200">
+                <Icon className="size-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-semibold text-white">{value}</p>
+                <p className="text-xs text-white/45">{label}</p>
               </div>
             </div>
+          ))}
+        </div>
+      </section>
 
-            <div className="p-4 sm:p-5">
-              <div className="rounded-[1.75rem] border border-orange-300/20 bg-orange-300/10 p-5 text-sm leading-7 text-orange-50">
-                Demo room is seeded with <span className="font-mono">PLAY42</span> so you can test
-                the player flow immediately.
-              </div>
-
-              <div className="mt-5 rounded-[1.75rem] border border-white/10 bg-black/20 p-5">
-                <p className="text-sm uppercase tracking-[0.25em] text-white/45">Host workflow</p>
-                <ol className="mt-4 space-y-3 text-sm leading-7 text-white/65">
-                  <li>1. Create or refine a question set.</li>
-                  <li>2. Launch a room from the game card.</li>
-                  <li>3. Share the QR code from the live host session.</li>
-                  <li>4. Run scoring and reveal the winner from the host controls.</li>
-                </ol>
-              </div>
-            </div>
+      {/* ── Recently edited ── */}
+      {recentGames.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/45">Recently edited</h2>
+            <button
+              onClick={() => document.getElementById('game-library')?.scrollIntoView({ behavior: 'smooth' })}
+              className="text-xs text-white/35 hover:text-white/60 transition"
+            >
+              See all →
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {recentGames.map((game) => (
+              <Link
+                key={game.id}
+                to={`/host/games/${game.id}`}
+                className="group panel flex flex-col gap-2 p-4 transition hover:border-orange-300/20"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <StatusBadge status={game.status} />
+                  <span className="text-xs text-white/30">{game.questions.length}q</span>
+                </div>
+                <p className="line-clamp-2 text-sm font-medium text-white/80 group-hover:text-white transition">
+                  {game.title}
+                </p>
+                <p className="text-[11px] text-white/30">
+                  {formatDate(game.updatedAt ?? game.createdAt ?? '')}
+                </p>
+              </Link>
+            ))}
           </div>
         </section>
+      )}
 
-        <section className="grid gap-3 xl:grid-cols-[300px_minmax(0,_1fr)] 2xl:grid-cols-[320px_minmax(0,_1fr)]">
-          <aside className="space-y-3">
-            <div className="panel p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-2xl bg-white/8 text-orange-100">
-                  <CopyPlus className="size-5" />
-                </div>
-                <div>
-                  <p className="text-sm uppercase tracking-[0.25em] text-white/45">Create a game</p>
-                  <h3 className="mt-1 text-2xl font-semibold text-white">New question set</h3>
-                </div>
+      {/* ── Quick-start chips + create form ── */}
+      <section className="panel p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="flex size-9 items-center justify-center rounded-xl bg-white/8 text-orange-100">
+            <CopyPlus className="size-5" />
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Create a game</p>
+            <h2 className="text-lg font-semibold text-white">New question set</h2>
+          </div>
+        </div>
+
+        {/* Quick-start chips */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          {QUICK_STARTS.map((qs) => (
+            <button
+              key={qs.label}
+              type="button"
+              onClick={() => {
+                const id = createGame(qs.title, qs.description)
+                navigate(`/host/games/${id}`)
+              }}
+              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs font-medium text-white/70 transition hover:border-orange-300/25 hover:bg-orange-300/8 hover:text-orange-200"
+            >
+              <span>{qs.emoji}</span>
+              {qs.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Custom create form */}
+        <form
+          className="flex flex-col gap-3 sm:flex-row"
+          onSubmit={(e) => {
+            e.preventDefault()
+            const id = createGame(title.trim(), description.trim())
+            setTitle(''); setDesc('')
+            navigate(`/host/games/${id}`)
+          }}
+        >
+          <input
+            className="input flex-1"
+            placeholder="Game title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
+          <input
+            className="input flex-1"
+            placeholder="Short description (optional)"
+            value={description}
+            onChange={(e) => setDesc(e.target.value)}
+          />
+          <button className="button-primary shrink-0" type="submit">
+            Create game
+          </button>
+        </form>
+
+        <div className="mt-3 flex justify-end">
+          <button className="button-ghost text-xs" type="button" onClick={resetDemo}>
+            <RotateCcw className="size-3.5" />
+            Reset demo data
+          </button>
+        </div>
+      </section>
+
+      {/* ── How it works strip ── */}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-white/45">How it works</h2>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {HOW_IT_WORKS.map(({ icon: Icon, label, description }) => (
+            <div key={label} className="panel flex items-start gap-3 p-4">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/6 text-white/40">
+                <Icon className="size-4" />
               </div>
-
-              <form
-                className="mt-6 space-y-4"
-                onSubmit={(event) => {
-                  event.preventDefault()
-                  const gameId = createGame(title.trim(), description.trim())
-                  setTitle('')
-                  setDescription('')
-                  navigate(`/host/games/${gameId}`)
-                }}
-              >
-                <input
-                  className="input"
-                  placeholder="Game title"
-                  value={title}
-                  onChange={(event) => setTitle(event.target.value)}
-                  required
-                />
-                <textarea
-                  className="input min-h-32"
-                  placeholder="What kind of fun game are you running?"
-                  value={description}
-                  onChange={(event) => setDescription(event.target.value)}
-                />
-                <div className="grid gap-3">
-                  <button className="button-primary w-full justify-center" type="submit">
-                    Create game
-                  </button>
-                  <button className="button-secondary w-full justify-center" type="button" onClick={resetDemo}>
-                    <RotateCcw className="size-4" />
-                    Reset demo data
-                  </button>
-                </div>
-              </form>
+              <div>
+                <p className="text-sm font-semibold text-white/80">{label}</p>
+                <p className="mt-0.5 text-xs leading-5 text-white/45">{description}</p>
+              </div>
             </div>
+          ))}
+        </div>
+      </section>
 
-            <div className="panel p-4">
-              <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-2xl bg-white/8 text-orange-100">
-                  <MonitorCog className="size-5" />
-                </div>
-                <div>
-                  <p className="text-sm uppercase tracking-[0.25em] text-white/45">Desktop notes</p>
-                  <h3 className="mt-1 text-2xl font-semibold text-white">Best on a large screen</h3>
+      {/* ── Game library ── */}
+      <section id="game-library">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Games</p>
+            <h2 className="text-xl font-semibold text-white">
+              Question library
+              {searchQuery && (
+                <span className="ml-2 text-sm font-normal text-white/40">
+                  — "{searchQuery}" ({filteredGames.length} results)
+                </span>
+              )}
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Tooltip content="Reset demo data" side="left">
+              <button onClick={resetDemo} className="button-ghost rounded-xl border border-white/8 px-2.5 py-2">
+                <RotateCcw className="size-4" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+
+        <div className="space-y-2.5">
+          {filteredGames.length === 0 ? (
+            searchQuery ? (
+              <div className="panel flex items-center justify-center py-12 text-white/40">
+                <div className="text-center">
+                  <Lightbulb className="mx-auto mb-3 size-8 opacity-30" />
+                  <p className="text-sm">No games match "{searchQuery}"</p>
                 </div>
               </div>
+            ) : (
+              <NoGamesEmpty
+                onCreateGame={() => document.querySelector<HTMLInputElement>('input[placeholder="Game title"]')?.focus()}
+              />
+            )
+          ) : (
+            filteredGames.map((game) => {
+              const hasQuestions = game.questions.length > 0
+              const isStarting   = startingRoom === game.id
 
-              <div className="mt-5 space-y-3 text-sm leading-7 text-white/65">
-                <p>Use the host side on a laptop or monitor so the game list and live room list stay visible together.</p>
-                <p>The player join and answer flow remains mobile-friendly, but host controls are intentionally laid out for desktop first.</p>
-              </div>
-            </div>
-          </aside>
-
-          <div className="min-w-0 space-y-3">
-            {/* ── Question library ── */}
-            <div className="panel p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.25em] text-white/45">Games</p>
-                  <h3 className="mt-2 text-3xl font-semibold text-white">Question library</h3>
-                </div>
-                <p className="max-w-xl text-sm leading-7 text-white/60">
-                  Keep this list as your reusable catalog. Each card is optimized for quick scanning,
-                  editing, and room launch from a desktop host station.
-                </p>
-              </div>
-
-              <div className="mt-4 space-y-2.5">
-                {state.games.length === 0 ? (
-                  <NoGamesEmpty
-                    onCreateGame={() => {
-                      // Focus the title input in the sidebar
-                      const input = document.querySelector<HTMLInputElement>('input[placeholder="Game title"]')
-                      input?.focus()
-                    }}
-                  />
-                ) : (
-                  state.games.map((game) => {
-                    const hasQuestions = game.questions.length > 0
-                    const isStarting = startingRoom === game.id
-
-                    return (
-                      <div
-                        key={game.id}
-                        className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121017] p-3.5"
-                      >
-                        <div className="grid gap-3 xl:grid-cols-[minmax(0,_1fr)_240px] 2xl:grid-cols-[minmax(0,_1fr)_260px]">
-                          <div className="space-y-3">
-                            <div className="flex flex-wrap items-center gap-2.5">
-                              <h4 className="text-2xl font-semibold text-white">{game.title}</h4>
-                              <StatusBadge status={game.status} />
-                            </div>
-                            <p className="max-w-3xl text-sm leading-7 text-white/65">{game.description}</p>
-                          </div>
-
-                          <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
-                            {/* Question count — warns when empty */}
-                            <div className={`rounded-2xl border px-4 py-3 ${hasQuestions ? 'border-white/8 bg-white/4' : 'border-amber-300/20 bg-amber-300/8'}`}>
-                              <p className="flex items-center gap-1.5 text-xs uppercase tracking-[0.2em] text-white/35">
-                                <MessageSquare className="size-3" />
-                                Questions
-                              </p>
-                              <p className={`mt-2 text-2xl font-semibold ${hasQuestions ? 'text-white' : 'text-amber-200'}`}>
-                                {game.questions.length}
-                              </p>
-                              {!hasQuestions && (
-                                <p className="mt-1 text-[10px] text-amber-200/70">Add questions first</p>
-                              )}
-                            </div>
-
-                            <Link className="button-secondary w-full min-w-0 justify-center" to={`/host/games/${game.id}`}>
-                              Edit set
-                            </Link>
-
-                            <div className="flex gap-2">
-                              {/* Start room — disabled when no questions */}
-                              <Tooltip
-                                content={hasQuestions ? 'Start a live room' : 'Add at least one question first'}
-                                side="top"
-                              >
-                                <button
-                                  className="button-primary min-w-0 flex-1 justify-center disabled:cursor-not-allowed disabled:opacity-40"
-                                  type="button"
-                                  disabled={!hasQuestions || isStarting}
-                                  onClick={async () => {
-                                    setStartingRoom(game.id)
-                                    try {
-                                      const sessionId = await createSession(game.id)
-                                      if (!sessionId) {
-                                        toast.error('Failed to create room', 'Check your connection and try again.')
-                                        return
-                                      }
-                                      navigate(`/host/sessions/${sessionId}`)
-                                    } finally {
-                                      setStartingRoom(null)
-                                    }
-                                  }}
-                                >
-                                  {isStarting ? (
-                                    <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                                    </svg>
-                                  ) : (
-                                    <CopyPlus className="size-4" />
-                                  )}
-                                  Start room
-                                </button>
-                              </Tooltip>
-
-                              {/* Delete game */}
-                              <Tooltip content="Delete game" side="top">
-                                <button
-                                  className="button-ghost rounded-full border border-white/10 px-3 py-3 text-white/40 hover:border-rose-400/30 hover:bg-rose-400/10 hover:text-rose-300"
-                                  type="button"
-                                  aria-label="Delete game"
-                                  onClick={() => setDeleteTarget({ id: game.id, title: game.title })}
-                                >
-                                  <Trash2 className="size-4" />
-                                </button>
-                              </Tooltip>
-                            </div>
-                          </div>
-                        </div>
+              return (
+                <div key={game.id} className="panel overflow-hidden p-4">
+                  <div className="flex items-start gap-4">
+                    {/* Left: game info */}
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold text-white">{game.title}</h3>
+                        <StatusBadge status={game.status} />
                       </div>
-                    )
-                  })
-                )}
-              </div>
-            </div>
-
-            {/* ── Rooms in motion ── */}
-            <div className="panel p-4">
-              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.25em] text-white/45">Recent sessions</p>
-                  <h3 className="mt-2 text-3xl font-semibold text-white">Rooms in motion</h3>
-                </div>
-                <p className="max-w-xl text-sm leading-7 text-white/60">
-                  Use this area as your active operations list while the session screen handles live
-                  hosting.
-                </p>
-              </div>
-
-              <div className="mt-4 grid gap-2.5 2xl:grid-cols-2">
-                {sessionsWithGame.length === 0 ? (
-                  <NoSessionsEmpty />
-                ) : (
-                  sessionsWithGame.map(({ session, game }) => (
-                    <div key={session.id} className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#121017] p-3.5">
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0">
-                          <p className="font-mono text-sm uppercase tracking-[0.35em] text-orange-100">
-                            {session.roomCode}
-                          </p>
-                          <h4 className="mt-3 truncate text-xl font-semibold text-white">
-                            {game?.title ?? 'Untitled game'}
-                          </h4>
-                          <div className="mt-2 flex items-center gap-2">
-                            <SessionStateBadge state={session.state} />
-                            <span className="text-sm text-white/40">·</span>
-                            <span className="text-sm text-white/60">created {formatDate(session.createdAt)}</span>
-                          </div>
-                        </div>
-
-                        <Link className="button-secondary shrink-0" to={`/host/sessions/${session.id}`}>
-                          {session.state === 'live' ? (
-                            <>
-                              <Play className="size-4" />
-                              Open
-                            </>
-                          ) : (
-                            <>
-                              View
-                              <ArrowRight className="size-4" />
-                            </>
-                          )}
-                        </Link>
+                      {game.description && (
+                        <p className="line-clamp-1 text-sm text-white/50">{game.description}</p>
+                      )}
+                      <div className="flex items-center gap-3">
+                        <span className={`flex items-center gap-1.5 text-xs ${hasQuestions ? 'text-white/40' : 'text-amber-300'}`}>
+                          <MessageSquare className="size-3" />
+                          {game.questions.length} question{game.questions.length !== 1 ? 's' : ''}
+                          {!hasQuestions && ' — add questions first'}
+                        </span>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
 
-      {/* ── Delete game confirm dialog ── */}
+                    {/* Right: actions */}
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Link className="button-secondary hidden sm:inline-flex" to={`/host/games/${game.id}`}>
+                        <Edit3 className="size-4" />
+                        Edit
+                      </Link>
+
+                      <Tooltip content={hasQuestions ? 'Start a live room' : 'Add questions first'} side="top">
+                        <button
+                          className="button-primary disabled:cursor-not-allowed disabled:opacity-40"
+                          disabled={!hasQuestions || isStarting}
+                          onClick={() => handleStartRoom(game.id)}
+                        >
+                          {isStarting ? (
+                            <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                            </svg>
+                          ) : (
+                            <Play className="size-4" />
+                          )}
+                          <span className="hidden sm:inline">Start room</span>
+                        </button>
+                      </Tooltip>
+
+                      {/* Three-dot context menu */}
+                      <DropdownMenu
+                        trigger={
+                          <button className="button-ghost rounded-full border border-white/10 px-2.5 py-2.5 text-white/50 hover:text-white/80">
+                            <MoreHorizontal className="size-4" />
+                          </button>
+                        }
+                        align="right"
+                      >
+                        <DropdownItem icon={<Edit3 />} onClick={() => navigate(`/host/games/${game.id}`)}>
+                          Edit set
+                        </DropdownItem>
+                        <DropdownItem
+                          icon={<Play />}
+                          onClick={() => handleStartRoom(game.id)}
+                          disabled={!hasQuestions}
+                        >
+                          Start room
+                        </DropdownItem>
+                        <DropdownSeparator />
+                        <DropdownItem
+                          icon={<Trash2 />}
+                          variant="danger"
+                          onClick={() => setDeleteTarget({ id: game.id, title: game.title })}
+                        >
+                          Delete
+                        </DropdownItem>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </section>
+
+      {/* ── Rooms in motion ── */}
+      <section>
+        <div className="mb-3">
+          <p className="text-xs uppercase tracking-[0.2em] text-white/40">Recent sessions</p>
+          <h2 className="text-xl font-semibold text-white">Rooms in motion</h2>
+        </div>
+
+        <div className="grid gap-2.5 xl:grid-cols-2">
+          {sessionsWithGame.length === 0 ? (
+            <NoSessionsEmpty />
+          ) : (
+            sessionsWithGame.map(({ session, game }) => (
+              <div key={session.id} className="panel p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-mono text-xs uppercase tracking-[0.3em] text-orange-200/80">
+                      {session.roomCode}
+                    </p>
+                    <h3 className="mt-2 truncate text-base font-semibold text-white">
+                      {game?.title ?? 'Untitled game'}
+                    </h3>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <SessionStateBadge state={session.state} />
+                      <span className="text-xs text-white/35">·</span>
+                      <span className="text-xs text-white/45">{formatDate(session.createdAt)}</span>
+                    </div>
+                  </div>
+
+                  <Link className="button-secondary shrink-0" to={`/host/sessions/${session.id}`}>
+                    {session.state === 'live' ? (
+                      <><Play className="size-4" />Open</>
+                    ) : (
+                      <>View<ArrowRight className="size-4" /></>
+                    )}
+                  </Link>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
+      {/* ── Delete confirm ── */}
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => { if (!deleteLoading) setDeleteTarget(null) }}
@@ -355,6 +446,6 @@ export function HostDashboardPage() {
         variant="danger"
         loading={deleteLoading}
       />
-    </>
+    </div>
   )
 }
