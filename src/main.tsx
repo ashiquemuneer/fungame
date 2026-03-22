@@ -4,6 +4,7 @@ import App from './App'
 import { GameStoreProvider } from './state/game-store'
 import { SupabaseStoreProvider } from './state/supabase-store'
 import { HostAccessProvider } from './state/host-access'
+import { ToastProvider } from './components/ui'
 import { isSupabaseConfigured } from './lib/supabase'
 import './index.css'
 
@@ -40,7 +41,9 @@ createRoot(document.getElementById('root')!).render(
     <ErrorBoundary>
       <HostAccessProvider>
         <StoreProvider>
-          <App />
+          <ToastProvider>
+            <App />
+          </ToastProvider>
         </StoreProvider>
       </HostAccessProvider>
     </ErrorBoundary>
