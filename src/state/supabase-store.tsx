@@ -57,6 +57,9 @@ function mapGame(row: any): Game {
     title: row.title,
     description: row.description ?? '',
     status: row.status,
+    tags: row.tags ?? [],
+    isPublic: row.is_public ?? false,
+    coverImage: row.cover_image ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     questions: (row.questions ?? [])
@@ -80,6 +83,21 @@ function mapSession(row: any): Session {
     allowJoin: row.allow_join,
     startedAt: row.started_at ?? undefined,
     endedAt: row.ended_at ?? undefined,
+    createdAt: row.created_at,
+    summary: row.summary ?? undefined,
+  }
+}
+
+function mapSessionResult(row: any): import('../types/game').SessionResult {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    playerId: row.player_id ?? undefined,
+    displayName: row.display_name,
+    totalPoints: row.total_points,
+    correctCount: row.correct_count,
+    questionCount: row.question_count,
+    rank: row.rank,
     createdAt: row.created_at,
   }
 }
@@ -273,7 +291,7 @@ const GAME_SELECT = `
 `.trim()
 
 async function loadAll(userId: string): Promise<AppState> {
-  if (!supabase) return { games: [], sessions: [], players: [], answers: [] }
+  if (!supabase) return { games: [], sessions: [], players: [], answers: [], sessionResults: [] }
 
   // 1. Games I host
   const { data: hostGamesData, error: gamesErr } = await supabase
@@ -353,17 +371,20 @@ async function loadAll(userId: string): Promise<AppState> {
     playerGamesData = data ?? []
   }
 
-  // 5. Players and answers for all sessions
+  // 5. Players, answers, and session results for all sessions
   let playerRows: any[] = []
   let answerRows: any[] = []
+  let sessionResultRows: any[] = []
 
   if (allSessionIds.length > 0) {
-    const [{ data: pData }, { data: aData }] = await Promise.all([
+    const [{ data: pData }, { data: aData }, { data: srData }] = await Promise.all([
       supabase.from('session_players').select('*').in('session_id', allSessionIds),
       supabase.from('answers').select('*').in('session_id', allSessionIds),
+      supabase.from('session_results').select('*').in('session_id', allSessionIds),
     ])
     playerRows = pData ?? []
     answerRows = aData ?? []
+    sessionResultRows = srData ?? []
   }
 
   return {
@@ -371,6 +392,7 @@ async function loadAll(userId: string): Promise<AppState> {
     sessions: allSessionRows.map(mapSession),
     players: playerRows.map(mapPlayer),
     answers: answerRows.map(mapAnswer),
+    sessionResults: sessionResultRows.map(mapSessionResult),
   }
 }
 
@@ -379,7 +401,7 @@ async function loadAll(userId: string): Promise<AppState> {
 // ---------------------------------------------------------------------------
 
 export function SupabaseStoreProvider({ children }: PropsWithChildren) {
-  const [state, setState] = useState<AppState>({ games: [], sessions: [], players: [], answers: [] })
+  const [state, setState] = useState<AppState>({ games: [], sessions: [], players: [], answers: [], sessionResults: [] })
   const [userId, setUserId] = useState<string | null>(null)
   const stateRef = useRef(state)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -470,18 +492,25 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     if (!supabase || !userId) return ''
     const id = crypto.randomUUID()
     const now = new Date().toISOString()
-    const newGame: Game = { id, title, description, status: 'draft', createdAt: now, updatedAt: now, questions: [] }
+    const newGame: Game = {
+      id, title, description, status: 'draft',
+      tags: [], isPublic: false,
+      createdAt: now, updatedAt: now, questions: [],
+    }
 
     setState((c) => ({ ...c, games: [newGame, ...c.games] }))
 
     supabase.from('games')
-      .insert({ id, host_user_id: userId, title, description, status: 'draft', created_at: now, updated_at: now })
+      .insert({ id, host_user_id: userId, title, description, status: 'draft', tags: [], is_public: false, created_at: now, updated_at: now })
       .then(({ error }) => { if (error) console.error('createGame:', error) })
 
     return id
   }, [userId])
 
-  const updateGameMeta = useCallback((gameId: string, patch: Pick<Game, 'title' | 'description' | 'status'>) => {
+  const updateGameMeta = useCallback((
+    gameId: string,
+    patch: Pick<Game, 'title' | 'description' | 'status'> & Partial<Pick<Game, 'tags' | 'isPublic' | 'coverImage'>>,
+  ) => {
     if (!supabase) return
     const now = new Date().toISOString()
     setState((c) => ({
@@ -489,7 +518,15 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       games: c.games.map((g) => g.id === gameId ? { ...g, ...patch, updatedAt: now } : g),
     }))
     supabase.from('games')
-      .update({ title: patch.title, description: patch.description, status: patch.status, updated_at: now })
+      .update({
+        title: patch.title,
+        description: patch.description,
+        status: patch.status,
+        ...(patch.tags !== undefined && { tags: patch.tags }),
+        ...(patch.isPublic !== undefined && { is_public: patch.isPublic }),
+        ...(patch.coverImage !== undefined && { cover_image: patch.coverImage }),
+        updated_at: now,
+      })
       .eq('id', gameId)
       .then(({ error }) => { if (error) console.error('updateGameMeta:', error) })
   }, [])
@@ -926,6 +963,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
   }, [patchSession])
 
   const endSession = useCallback((sessionId: string) => {
+    // Optimistically update local state immediately
     const now = new Date().toISOString()
     patchSession(sessionId, {
       state: 'completed',
@@ -940,7 +978,15 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       reveal_answers: true,
       ended_at: now,
     })
-  }, [patchSession])
+    // Call RPC to write session_results + summary snapshot
+    if (supabase) {
+      supabase.rpc('finalize_session', { p_session_id: sessionId })
+        .then(({ error }) => {
+          if (error) console.error('finalize_session rpc:', error)
+          else if (userId) loadAll(userId).then(setState)
+        })
+    }
+  }, [patchSession, userId])
 
   const joinSession = useCallback(async (roomCode: string, displayName: string) => {
     if (!supabase) return null
@@ -1087,7 +1133,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     setUserId(null)
     setHostEmail(null)
     setIsHostAuthenticated(false)
-    setState({ games: [], sessions: [], players: [], answers: [] })
+    setState({ games: [], sessions: [], players: [], answers: [], sessionResults: [] })
   }, [])
 
   const inviteCollaborator = useCallback(async (gameId: string, email: string): Promise<string | null> => {
@@ -1150,6 +1196,12 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     [state.answers, state.players],
   )
 
+  const getSessionResults = useCallback(
+    (sessionId: string) =>
+      (state.sessionResults ?? []).filter((r) => r.sessionId === sessionId),
+    [state.sessionResults],
+  )
+
   const value = useMemo<GameStoreValue>(
     () => ({
       state,
@@ -1178,6 +1230,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       getPlayersForSession,
       getAnswersForSessionQuestion,
       getLeaderboard,
+      getSessionResults,
       signUp,
       signIn,
       signOut: signOutCb,
@@ -1192,7 +1245,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       createSession, startSession, pauseSession, resumeSession, revealMoreImage,
       endCurrentQuestion, goToNextQuestion, endSession, joinSession, removePlayer,
       submitAnswer, scoreTextAnswer, resetDemo,
-      getGame, getSession, getPlayersForSession, getAnswersForSessionQuestion, getLeaderboard,
+      getGame, getSession, getPlayersForSession, getAnswersForSessionQuestion, getLeaderboard, getSessionResults,
       signUp, signIn, signOutCb, inviteCollaborator, hostEmail, isHostAuthenticated, authLoading,
     ],
   )

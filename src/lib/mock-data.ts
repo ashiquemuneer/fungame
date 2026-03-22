@@ -55,6 +55,8 @@ function createSeedGames(): Game[] {
       description:
         'Try every slide type — section, multiple choice, true/false, short text, emoji, and image reveal. Perfect for exploring the game before building your own.',
       status: 'published',
+      tags: ['demo'],
+      isPublic: false,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       questions: [
@@ -188,5 +190,6 @@ export function createInitialState(): AppState {
     ],
     players: [],
     answers: [],
+    sessionResults: [],
   }
 }

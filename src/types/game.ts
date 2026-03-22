@@ -45,6 +45,9 @@ export interface Game {
   title: string
   description: string
   status: GameStatus
+  tags: string[]
+  isPublic: boolean
+  coverImage?: string
   createdAt: string
   updatedAt: string
   questions: Question[]
@@ -64,6 +67,26 @@ export interface Session {
   allowJoin: boolean
   startedAt?: string
   endedAt?: string
+  createdAt: string
+  summary?: SessionResultEntry[]
+}
+
+export interface SessionResultEntry {
+  rank: number
+  displayName: string
+  totalPoints: number
+  correctCount: number
+}
+
+export interface SessionResult {
+  id: string
+  sessionId: string
+  playerId?: string
+  displayName: string
+  totalPoints: number
+  correctCount: number
+  questionCount: number
+  rank: number
   createdAt: string
 }
 
@@ -95,6 +118,7 @@ export interface AppState {
   sessions: Session[]
   players: SessionPlayer[]
   answers: Answer[]
+  sessionResults: SessionResult[]
 }
 
 export interface LeaderboardEntry {

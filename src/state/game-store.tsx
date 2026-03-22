@@ -18,6 +18,7 @@ import type {
   QuestionDraft,
   Session,
   SessionPlayer,
+  SessionResult,
 } from '../types/game'
 
 const STORAGE_KEY = 'fungame-state-v1'
@@ -25,7 +26,8 @@ const STORAGE_KEY = 'fungame-state-v1'
 export interface GameStoreValue {
   state: AppState
   createGame: (title: string, description: string) => string
-  updateGameMeta: (gameId: string, patch: Pick<Game, 'title' | 'description' | 'status'>) => void
+  updateGameMeta: (gameId: string, patch: Pick<Game, 'title' | 'description' | 'status'> & Partial<Pick<Game, 'tags' | 'isPublic' | 'coverImage'>>) => void
+  getSessionResults: (sessionId: string) => SessionResult[]
   saveQuestion: (gameId: string, draft: QuestionDraft, questionId?: string) => void
   duplicateQuestion: (gameId: string, questionId: string) => void
   deleteQuestion: (gameId: string, questionId: string) => void
@@ -819,6 +821,12 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
     [state.answers, state.players],
   )
 
+  const getSessionResults = useCallback(
+    (sessionId: string): SessionResult[] =>
+      (state.sessionResults ?? []).filter((r) => r.sessionId === sessionId),
+    [state.sessionResults],
+  )
+
   const signUp = useCallback(async (_email: string, _password: string): Promise<string | null> => {
     return 'Email sign-up requires Supabase to be configured.'
   }, [])
@@ -861,6 +869,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       getPlayersForSession,
       getAnswersForSessionQuestion,
       getLeaderboard,
+      getSessionResults,
       signUp,
       signIn,
       signOut: signOutCb,
@@ -896,6 +905,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
       getPlayersForSession,
       getAnswersForSessionQuestion,
       getLeaderboard,
+      getSessionResults,
       signUp,
       signIn,
       signOutCb,
