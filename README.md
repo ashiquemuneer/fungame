@@ -20,6 +20,18 @@ npm run dev
 
 Open the app and use the seeded room code `PLAY42` to test the player flow.
 
+## Design System
+
+FunGame uses a strict 3-layer CSS custom property architecture to handle dark/light mode seamlessly:
+1. **Primitives**: Raw colors like `--primitive-rose-300` (do not use directly in components).
+2. **Semantic Roles**: Context-aware defaults like `--text-primary`, `--surface-container`, `--outline-subtle` mapped differently for dark/light layers.
+3. **Component Tokens**: Specific override scopes (e.g. `--badge-danger-bg`) that inherit from semantics.
+
+**Rules:**
+- `design-system/index.html` contains the full documentation, token maps, and interactive previews for all UI components.
+- **Never use raw Tailwind palette colors** (e.g., `bg-rose-400`, `text-emerald-300`) in component files. Use the semantic tokens explicitly (`bg-[var(--danger-container)]`).
+- `Sora` is used for display headings, `IBM Plex Sans` for body content (`--font-body`), and `IBM Plex Mono` for code/numbers.
+
 ## Project Structure
 
 ```text

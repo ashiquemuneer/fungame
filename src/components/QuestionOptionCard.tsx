@@ -76,7 +76,7 @@ export function QuestionOptionCard({
   }
 
   // Text or Text+Image mode — never stretch image for text+image, always keep 1:1
-  const useDynamicMediaHeight = hasImage && fillHeight && !compact && displayMode === 'image'
+  const useDynamicMediaHeight = false
 
   return (
     <Wrapper
@@ -104,9 +104,7 @@ export function QuestionOptionCard({
         <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-rim bg-input-bg text-sm font-semibold text-accent-text">
           {letter}
         </span>
-        {displayMode !== 'image' && (
-          <span className={cn('leading-7', hasImage ? 'text-base' : '')}>{option.label}</span>
-        )}
+        <span className={cn('leading-7', hasImage ? 'text-base' : '')}>{option.label}</span>
       </div>
 
       {hasImage ? (

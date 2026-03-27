@@ -157,6 +157,7 @@ export function SlidePreviewPaneMobile({ question, questionNumber }: Props) {
               const gap = 8
               const rows = Math.ceil(count / cols)
               const maxFromW = (CONTENT_W - (cols - 1) * gap) / cols
+              const CONTENT_H = 440
               const maxFromH = (CONTENT_H - rows * LABEL_H - (rows - 1) * gap) / rows
               const imgSize = Math.floor(Math.min(maxFromW, maxFromH))
               const cardH = imgSize + LABEL_H

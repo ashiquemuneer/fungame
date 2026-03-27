@@ -8,10 +8,10 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from 'react'
 import {
-  ArrowLeft, Check, ChevronRight, CircleDot, Copy, Crop,
+  ArrowLeft, Check, ChevronRight, CircleDot, Copy,
   Eye, Hash, Image, ImageIcon, Layout, LayoutTemplate, LogIn, Monitor, MoreHorizontal, PanelLeft, PanelRight,
   PanelRightClose, PanelRightOpen,
-  PenLine, Play, Plus, Smartphone, Smile, Star, ToggleLeft, Trash2, Type, Upload, X,
+  PenLine, Play, Plus, Smartphone, Smile, Star, ToggleLeft, Trash2, Type, X,
 } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { cn } from '../lib/utils'
@@ -695,7 +695,6 @@ export function GameEditorPage() {
                 } else {
                   cols = Math.ceil(count / 2)
                 }
-                const rows = Math.ceil(count / cols)
                 const gap = count >= 8 ? 8 : 12
 
                 if (hasImages) {
@@ -1702,6 +1701,7 @@ export function GameEditorPage() {
                     options: copyTarget.options, timeLimitSeconds: copyTarget.timeLimitSeconds,
                     points: copyTarget.points, isDemo: false, isTieBreaker: false,
                     slideLayout: copyTarget.slideLayout ?? 'auto',
+                    optionDisplayMode: copyTarget.optionDisplayMode ?? 'text',
                     imageRevealConfig: copyTarget.imageRevealConfig ?? createQuestionDraft().imageRevealConfig,
                   })
                   toast.success('Copied', `Added to "${g.title}".`)

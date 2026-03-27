@@ -649,7 +649,7 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
             </div>
           </section>
         ) : (
-          <section className="space-y-2 rounded-[1.35rem] border border-edge bg-input-bg p-3">
+          <><section className="space-y-2 rounded-[1.35rem] border border-edge bg-input-bg p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm uppercase tracking-[0.12em] text-faded">Answer options</p>
@@ -810,24 +810,21 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
             </div>
           </section>
 
-          {cropFor && (() => {
-            const opt = draft.options.find(o => o.id === cropFor)
-            if (!opt?.imageUrl) return null
-            return (
-              <ImageCropModal
-                open
-                src={opt.imageUrl}
-                onClose={() => setCropFor(null)}
-                onApply={(dataUrl) => {
-                  setDraft(c => ({
-                    ...c,
-                    options: c.options.map(o => o.id === cropFor ? { ...o, imageUrl: dataUrl } : o),
-                  }))
-                  setCropFor(null)
-                }}
-              />
-            )
-          })()}
+          {cropFor && !!draft.options.find(o => o.id === cropFor)?.imageUrl && (
+            <ImageCropModal
+              open
+              src={draft.options.find(o => o.id === cropFor)!.imageUrl!}
+              onClose={() => setCropFor(null)}
+              onApply={(dataUrl) => {
+                setDraft(c => ({
+                  ...c,
+                  options: c.options.map(o => o.id === cropFor ? { ...o, imageUrl: dataUrl } : o),
+                }))
+                setCropFor(null)
+              }}
+            />
+          )}
+          </>
         )}
 
         {draft.type !== 'section' && (

@@ -19,5 +19,14 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      'no-restricted-syntax': [
+        'warn',
+        {
+          selector: 'JSXAttribute[name.name="className"] > Literal[value=/(?:^|\\s)(bg|text|border|ring)-(green|emerald|rose|red|orange|amber|yellow|sky|blue|indigo|purple|slate|gray|zinc|neutral|stone|black|white)(?:-[1-9]|\\/[1-9]|\\s|$)/]',
+          message: 'Design System Warning: Raw Tailwind palette colors are disallowed. Please use token variables (e.g., text-[var(--accent-text)], bg-[var(--danger-container)]). Ignore if intentional (e.g. for pure black/white accents).'
+        }
+      ]
+    }
   },
 ])

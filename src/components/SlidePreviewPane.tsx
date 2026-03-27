@@ -152,7 +152,6 @@ export function SlidePreviewPane({ question, questionNumber }: Props) {
             } else {
               cols = Math.ceil(count / 2)
             }
-            const rows = Math.ceil(count / cols)
             const gap = count >= 8 ? 8 : 12
 
             if (hasImages) {
