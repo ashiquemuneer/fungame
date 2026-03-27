@@ -1,124 +1,177 @@
-import { ArrowRight, CirclePlay, Cloud, LayoutTemplate, Radio, ShieldCheck } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import {
+  ArrowRight, BarChart2, QrCode, Smartphone, Users, Zap,
+} from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useGameStore } from '../state/game-store'
 
+const FEATURES = [
+  {
+    icon: Zap,
+    title: 'Live in seconds',
+    body: 'Create a question set, start a room, and share the code. Players join instantly — no app download needed.',
+  },
+  {
+    icon: Smartphone,
+    title: 'Any device',
+    body: 'Players join from their phone or laptop via a QR code or 6-character room code.',
+  },
+  {
+    icon: BarChart2,
+    title: 'Real-time scoring',
+    body: 'Answers come in live. Leaderboard updates after every question. The winner is always clear.',
+  },
+  {
+    icon: Users,
+    title: 'Built for teams',
+    body: 'Perfect for office all-hands, team onboarding, training sessions, and Friday fun.',
+  },
+]
+
+const HOW_IT_WORKS = [
+  { step: '01', icon: QrCode,   title: 'Create a game',     body: 'Build your question set with multiple choice, true/false, ratings, and more.' },
+  { step: '02', icon: Zap,      title: 'Open a room',       body: 'Start a live session. Share the QR code or room code on your screen.' },
+  { step: '03', icon: BarChart2, title: 'Play & celebrate', body: 'Watch answers roll in, reveal results, and crown the winner.' },
+]
+
 export function HomePage() {
-  const { state } = useGameStore()
+  const navigate = useNavigate()
+  const { isHostAuthenticated } = useGameStore()
+
+  // Redirect logged-in hosts to dashboard
+  useEffect(() => {
+    if (isHostAuthenticated) {
+      navigate('/host/dashboard', { replace: true })
+    }
+  }, [isHostAuthenticated, navigate])
+
+  if (isHostAuthenticated) return null
 
   return (
-    <div className="space-y-6">
-      <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <div className="panel overflow-hidden p-8">
-          <div className="max-w-2xl space-y-6">
-            <p className="font-mono text-xs uppercase tracking-[0.35em] text-orange-200/80">
-              Live quiz for colleagues
-            </p>
-            <h2 className="font-['Sora','Avenir_Next',sans-serif] text-4xl font-semibold leading-tight text-white sm:text-5xl">
-              Run the whole office game from one clean dashboard.
-            </h2>
-            <p className="max-w-xl text-base leading-8 text-white/70">
-              This starter is focused on the real event flow: create questions, open a room,
-              collect answers, track scores, and reveal the winner without paying for a backend.
-            </p>
+    <div className="space-y-24 pb-24">
 
-            <div className="flex flex-wrap gap-3">
-              <Link className="button-primary" to="/host/dashboard">
-                Open host dashboard
-                <ArrowRight className="size-4" />
-              </Link>
-              <Link className="button-secondary" to="/join">
-                Join as player
-              </Link>
-            </div>
+      {/* ── Hero ── */}
+      <section className="pt-16 text-center">
+        <div className="mx-auto max-w-3xl space-y-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-accent-dim bg-accent-dim px-4 py-1.5 text-xs font-medium text-accent-text">
+            <span className="size-1.5 animate-pulse rounded-full bg-accent" />
+            Live quiz for your whole team
           </div>
-        </div>
-
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-1">
-          <div className="panel p-6">
-            <p className="text-sm uppercase tracking-[0.25em] text-white/45">Seeded demo</p>
-            <div className="mt-4 space-y-4">
-              <div>
-                <p className="text-sm text-white/50">Published games</p>
-                <p className="text-3xl font-semibold text-white">{state.games.length}</p>
-              </div>
-              <div>
-                <p className="text-sm text-white/50">Try room code</p>
-                <p className="rounded-2xl bg-black/20 px-4 py-3 font-mono text-2xl tracking-[0.35em] text-orange-100">
-                  PLAY42
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="panel p-6">
-            <p className="text-sm uppercase tracking-[0.25em] text-white/45">Why this stack</p>
-            <ul className="mt-4 space-y-3 text-sm leading-7 text-white/70">
-              <li>Free-first architecture for small internal events</li>
-              <li>Mock mode lets you design before wiring realtime</li>
-              <li>Supabase migration included for the backend phase</li>
-            </ul>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            icon: LayoutTemplate,
-            title: 'Question builder',
-            body: 'MCQ, true/false, and short-text rounds with timers and point values.',
-          },
-          {
-            icon: Radio,
-            title: 'Live session flow',
-            body: 'Lobby, current question, answer count, reveal, leaderboard, and winner state.',
-          },
-          {
-            icon: ShieldCheck,
-            title: 'Free backend ready',
-            body: 'Supabase schema, RLS starter, and join RPC are ready in the migration folder.',
-          },
-          {
-            icon: Cloud,
-            title: 'Cloudflare deployable',
-            body: 'SPA routing and static output setup are already aligned for Pages hosting.',
-          },
-        ].map((feature) => (
-          <div key={feature.title} className="panel p-5">
-            <feature.icon className="size-10 rounded-2xl bg-orange-300/15 p-2 text-orange-100" />
-            <h3 className="mt-4 text-xl font-semibold text-white">{feature.title}</h3>
-            <p className="mt-3 text-sm leading-7 text-white/65">{feature.body}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="panel grid gap-6 p-6 xl:grid-cols-[1fr_0.95fr]">
-        <div>
-          <p className="text-sm uppercase tracking-[0.25em] text-white/45">Event flow</p>
-          <ol className="mt-4 space-y-4 text-sm text-white/70">
-            <li>1. Host creates or edits a question set.</li>
-            <li>2. Host launches a live room and shares the code.</li>
-            <li>3. Players join from their phones or laptops.</li>
-            <li>4. Host starts the round and moves through each question.</li>
-            <li>5. Leaderboard updates after each reveal and the winner closes the session.</li>
-          </ol>
-        </div>
-
-        <div className="rounded-[2rem] border border-white/10 bg-black/20 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm uppercase tracking-[0.25em] text-white/45">Fast test</p>
-              <h3 className="mt-2 text-2xl font-semibold text-white">Start using the prototype</h3>
-            </div>
-            <CirclePlay className="size-10 text-orange-200" />
-          </div>
-
-          <div className="mt-6 grid gap-3">
-            <Link className="button-primary" to="/host/dashboard">
-              Host the demo session
+          <h1 className="font-[family-name:var(--font-heading)] text-5xl font-semibold leading-[1.15] tracking-tight text-hi sm:text-6xl xl:text-7xl">
+            Quizzes your team<br />
+            <span className="text-accent-text">actually enjoys</span>
+          </h1>
+          <p className="mx-auto max-w-xl text-lg leading-relaxed text-lo">
+            Build question sets, run live rooms, collect answers, and reveal winners — all from one clean dashboard. No extra software required.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <Link
+              to="/host/login"
+              className="button-primary px-6 py-3 text-base"
+            >
+              Get started free
+              <ArrowRight className="size-5" />
             </Link>
-            <Link className="button-secondary" to="/join">
-              Join with room code
+            <Link
+              to="/join"
+              className="button-secondary px-6 py-3 text-base"
+            >
+              Join as player
+            </Link>
+          </div>
+        </div>
+
+        {/* Mock dashboard preview */}
+        <div className="mx-auto mt-16 max-w-4xl">
+          <div className="panel overflow-hidden border-edge p-1">
+            <div className="flex h-10 items-center gap-2 border-b border-line px-4">
+              <div className="flex gap-1.5">
+                <div className="size-2.5 rounded-full bg-fill-hi" />
+                <div className="size-2.5 rounded-full bg-fill-hi" />
+                <div className="size-2.5 rounded-full bg-fill-hi" />
+              </div>
+              <div className="mx-auto h-5 w-40 rounded-md bg-fill-lo" />
+            </div>
+            <div className="grid grid-cols-[180px_1fr] divide-x divide-line">
+              {/* Sidebar mockup */}
+              <div className="space-y-1 p-3">
+                {['Dashboard', 'My Games', 'Sessions'].map((item, i) => (
+                  <div
+                    key={item}
+                    className={`h-8 rounded-lg ${i === 0 ? 'bg-accent-dim' : 'bg-fill'}`}
+                  />
+                ))}
+              </div>
+              {/* Content mockup */}
+              <div className="p-4 space-y-3">
+                <div className="h-6 w-48 rounded-lg bg-fill-lo" />
+                <div className="grid grid-cols-3 gap-3">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-24 rounded-2xl bg-fill" />
+                  ))}
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  {['from-violet-500/20 to-purple-700/15', 'from-sky-500/20 to-blue-700/15', 'from-emerald-500/20 to-teal-700/15'].map((g, i) => (
+                    <div key={i} className={`h-32 rounded-2xl bg-gradient-to-br ${g}`} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Features ── */}
+      <section className="mx-auto max-w-5xl">
+        <div className="mb-10 text-center">
+          <p className="text-sm font-medium uppercase tracking-[0.12em] text-accent-text">Everything you need</p>
+          <h2 className="mt-2 text-3xl font-semibold text-hi">Quiz night, without the headache</h2>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {FEATURES.map(({ icon: Icon, title, body }) => (
+            <div key={title} className="panel p-5">
+              <div className="flex size-10 items-center justify-center rounded-2xl bg-accent-dim text-accent-text">
+                <Icon className="size-5" />
+              </div>
+              <h3 className="mt-4 text-base font-semibold text-hi">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-dim">{body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── How it works ── */}
+      <section className="mx-auto max-w-4xl">
+        <div className="mb-10 text-center">
+          <p className="text-sm font-medium uppercase tracking-[0.12em] text-accent-text">Simple by design</p>
+          <h2 className="mt-2 text-3xl font-semibold text-hi">Up and running in 3 steps</h2>
+        </div>
+        <div className="grid gap-6 sm:grid-cols-3">
+          {HOW_IT_WORKS.map(({ step, icon: Icon, title, body }) => (
+            <div key={step} className="relative panel p-6">
+              <p className="font-mono text-5xl font-bold text-subtle absolute -top-2 right-4">{step}</p>
+              <div className="flex size-11 items-center justify-center rounded-2xl bg-accent-dim text-accent-text">
+                <Icon className="size-5" />
+              </div>
+              <h3 className="mt-4 text-base font-semibold text-hi">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-dim">{body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── CTA ── */}
+      <section className="mx-auto max-w-2xl text-center">
+        <div className="panel p-10">
+          <h2 className="text-3xl font-semibold text-hi">Ready to run your first game?</h2>
+          <p className="mt-3 text-dim">Free to start. No credit card. Just great quizzes.</p>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <Link
+              to="/host/login"
+              className="button-primary px-6 py-3 text-base"
+            >
+              Create your first game
+              <ArrowRight className="size-5" />
             </Link>
           </div>
         </div>

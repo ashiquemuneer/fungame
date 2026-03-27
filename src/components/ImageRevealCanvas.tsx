@@ -29,7 +29,7 @@ export function ImageRevealCanvas({
     return (
       <div
         className={cn(
-          'flex items-center justify-center rounded-[1.6rem] border border-dashed border-white/15 bg-white/4 px-6 py-8 text-center text-sm text-white/55',
+          'flex items-center justify-center rounded-[1.6rem] border border-dashed border-[var(--outline-default)] bg-[var(--surface-container)] px-6 py-8 text-center text-sm text-[var(--text-primary)]/55',
           className,
         )}
       >
@@ -57,7 +57,7 @@ export function ImageRevealCanvas({
   }
 
   return (
-    <div className={cn('overflow-hidden rounded-[1.6rem] border border-white/10 bg-white/95', className)}>
+    <div className={cn('overflow-hidden rounded-[1.6rem] border border-[var(--outline-default)] bg-raised', className)}>
       <img
         alt={alt}
         className={cn(

@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useGameStore } from '../state/game-store'
 import { useHostAccess } from '../state/host-access'
+import { AlertBanner } from '../components/ui'
 
 export function HostLoginPage() {
   const navigate = useNavigate()
@@ -30,29 +31,29 @@ export function HostLoginPage() {
       <div className="mx-auto max-w-md">
         <section className="panel p-8">
           <div className="flex items-center gap-3">
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-orange-300 text-stone-950">
+            <div className="flex size-12 items-center justify-center rounded-2xl bg-accent text-on-accent">
               <ShieldCheck className="size-6" />
             </div>
             <div>
-              <p className="text-sm uppercase tracking-[0.25em] text-white/45">Host portal</p>
-              <h2 className="mt-1 text-2xl font-semibold text-white">
+              <p className="text-sm uppercase tracking-[0.12em] text-dim">Host portal</p>
+              <h2 className="mt-1 text-2xl font-semibold text-hi">
                 {tab === 'signin' ? 'Sign in to your account' : 'Create host account'}
               </h2>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="mt-6 flex rounded-2xl border border-white/10 bg-black/20 p-1">
+          <div className="mt-6 flex rounded-2xl border border-edge bg-input-bg p-1">
             <button
               type="button"
-              className={`flex-1 rounded-xl py-2 text-sm font-medium transition ${tab === 'signin' ? 'bg-orange-300 text-stone-950' : 'text-white/60 hover:text-white'}`}
+              className={`flex-1 rounded-xl py-2 text-sm font-medium transition ${tab === 'signin' ? 'bg-accent text-on-accent' : 'text-lo hover:text-hi'}`}
               onClick={() => { setTab('signin'); setError(''); setInfo('') }}
             >
               Sign in
             </button>
             <button
               type="button"
-              className={`flex-1 rounded-xl py-2 text-sm font-medium transition ${tab === 'signup' ? 'bg-orange-300 text-stone-950' : 'text-white/60 hover:text-white'}`}
+              className={`flex-1 rounded-xl py-2 text-sm font-medium transition ${tab === 'signup' ? 'bg-accent text-on-accent' : 'text-lo hover:text-hi'}`}
               onClick={() => { setTab('signup'); setError(''); setInfo('') }}
             >
               Sign up
@@ -90,7 +91,7 @@ export function HostLoginPage() {
               }
             }}
           >
-            <label className="block space-y-1.5 text-sm text-white/80">
+            <label className="block space-y-1.5 text-sm text-md">
               <span>Email address</span>
               <input
                 autoFocus
@@ -103,7 +104,7 @@ export function HostLoginPage() {
               />
             </label>
 
-            <label className="block space-y-1.5 text-sm text-white/80">
+            <label className="block space-y-1.5 text-sm text-md">
               <span>Password</span>
               <input
                 className="input"
@@ -116,7 +117,7 @@ export function HostLoginPage() {
             </label>
 
             {tab === 'signup' && (
-              <label className="block space-y-1.5 text-sm text-white/80">
+              <label className="block space-y-1.5 text-sm text-md">
                 <span>Confirm password</span>
                 <input
                   className="input"
@@ -130,19 +131,30 @@ export function HostLoginPage() {
             )}
 
             {error && (
-              <div className="rounded-2xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+              <AlertBanner variant="error">
                 {error}
-              </div>
+              </AlertBanner>
             )}
             {info && (
-              <div className="rounded-2xl border border-green-300/20 bg-green-300/10 px-4 py-3 text-sm text-green-100">
+              <AlertBanner variant="success">
                 {info}
-              </div>
+              </AlertBanner>
             )}
 
             <button className="button-primary w-full" type="submit" disabled={loading}>
               {loading ? (tab === 'signup' ? 'Creating account…' : 'Signing in…') : (tab === 'signup' ? 'Create account' : 'Sign in')}
             </button>
+
+            {tab === 'signin' && (
+              <div className="text-center">
+                <a
+                  href="#/host/forgot-password"
+                  className="text-xs text-faded hover:text-lo transition"
+                >
+                  Forgot your password?
+                </a>
+              </div>
+            )}
           </form>
         </section>
       </div>
@@ -154,15 +166,15 @@ export function HostLoginPage() {
     <div className="mx-auto max-w-xl">
       <section className="panel p-8">
         <div className="flex items-center gap-3">
-          <div className="flex size-12 items-center justify-center rounded-2xl bg-orange-300 text-stone-950">
+          <div className="flex size-12 items-center justify-center rounded-2xl bg-accent text-on-accent">
             <ShieldCheck className="size-6" />
           </div>
           <div>
-            <p className="text-sm uppercase tracking-[0.25em] text-white/45">Host access</p>
-            <h2 className="mt-1 text-3xl font-semibold text-white">Unlock host controls</h2>
+            <p className="text-sm uppercase tracking-[0.12em] text-dim">Host access</p>
+            <h2 className="mt-1 text-3xl font-semibold text-hi">Unlock host controls</h2>
           </div>
         </div>
-        <p className="mt-5 text-sm leading-7 text-white/65">
+        <p className="mt-5 text-sm leading-7 text-lo">
           Participants can use the same app to join the game, but only browsers with the host access
           code can open the dashboard and live controls.
         </p>
@@ -175,7 +187,7 @@ export function HostLoginPage() {
             navigate(next)
           }}
         >
-          <label className="space-y-2 text-sm text-white/80">
+          <label className="space-y-2 text-sm text-md">
             <span>Host access code</span>
             <input
               autoFocus
@@ -187,9 +199,9 @@ export function HostLoginPage() {
             />
           </label>
           {codeError && (
-            <div className="rounded-2xl border border-rose-300/20 bg-rose-300/10 px-4 py-3 text-sm text-rose-100">
+            <AlertBanner variant="error">
               {codeError}
-            </div>
+            </AlertBanner>
           )}
           <button className="button-primary w-full" type="submit">Unlock host area</button>
         </form>

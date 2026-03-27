@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-type BadgeVariant = 'default' | 'orange' | 'green' | 'red' | 'blue' | 'yellow' | 'purple'
+type BadgeVariant = 'default' | 'brand' | 'success' | 'danger' | 'info' | 'warning' | 'purple'
 type BadgeSize    = 'sm' | 'md'
 
 interface BadgeProps {
@@ -11,35 +11,69 @@ interface BadgeProps {
   className?: string
 }
 
-const variantClass: Record<BadgeVariant, string> = {
-  default: 'bg-white/10 text-white/70 border-white/10',
-  orange:  'bg-orange-300/12 text-orange-200 border-orange-300/20',
-  green:   'bg-emerald-300/12 text-emerald-200 border-emerald-300/20',
-  red:     'bg-rose-400/12 text-rose-300 border-rose-400/20',
-  blue:    'bg-sky-300/12 text-sky-200 border-sky-300/20',
-  yellow:  'bg-amber-300/12 text-amber-200 border-amber-300/20',
-  purple:  'bg-violet-400/12 text-violet-300 border-violet-400/20',
-}
-
-const dotClass: Record<BadgeVariant, string> = {
-  default: 'bg-white/50',
-  orange:  'bg-orange-300',
-  green:   'bg-emerald-300',
-  red:     'bg-rose-400',
-  blue:    'bg-sky-300',
-  yellow:  'bg-amber-300',
-  purple:  'bg-violet-400',
+// Token-backed variant styles — map to CSS custom properties in tokens.css
+const variantStyles: Record<BadgeVariant, { bg: string; border: string; text: string; dot: string }> = {
+  default: {
+    bg:     'var(--surface-container-high)',
+    border: 'var(--outline-default)',
+    text:   'var(--text-secondary)',
+    dot:    'var(--text-tertiary)',
+  },
+  brand: {
+    bg:     'var(--badge-brand-bg)',
+    border: 'var(--badge-brand-border)',
+    text:   'var(--badge-brand-text)',
+    dot:    'var(--accent)',
+  },
+  success: {
+    bg:     'var(--badge-success-bg)',
+    border: 'var(--badge-success-border)',
+    text:   'var(--badge-success-text)',
+    dot:    'var(--success)',
+  },
+  danger: {
+    bg:     'var(--badge-danger-bg)',
+    border: 'var(--badge-danger-border)',
+    text:   'var(--badge-danger-text)',
+    dot:    'var(--danger)',
+  },
+  info: {
+    bg:     'var(--badge-info-bg)',
+    border: 'var(--badge-info-border)',
+    text:   'var(--badge-info-text)',
+    dot:    'var(--info)',
+  },
+  warning: {
+    bg:     'var(--badge-warning-bg)',
+    border: 'var(--badge-warning-border)',
+    text:   'var(--badge-warning-text)',
+    dot:    'var(--warning)',
+  },
+  purple: {
+    bg:     'var(--info-container)',
+    border: 'var(--info-outline)',
+    text:   'var(--info-foreground)',
+    dot:    'var(--info-foreground)',
+  },
 }
 
 const sizeClass: Record<BadgeSize, string> = {
-  sm: 'px-2 py-0.5 text-[10px] tracking-[0.15em]',
-  md: 'px-3 py-1 text-xs tracking-[0.18em]',
+  sm: 'px-2 py-0.5 text-[10px] tracking-[0.12em]',
+  md: 'px-3 py-1 text-xs tracking-[0.12em]',
 }
 
 export function Badge({ children, variant = 'default', size = 'md', dot = false, className = '' }: BadgeProps) {
+  const s = variantStyles[variant]
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border font-medium uppercase ${variantClass[variant]} ${sizeClass[size]} ${className}`}>
-      {dot && <span className={`size-1.5 rounded-full ${dotClass[variant]}`} />}
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border font-medium uppercase ${sizeClass[size]} ${className}`}
+      style={{
+        backgroundColor: s.bg,
+        borderColor: s.border,
+        color: s.text,
+      }}
+    >
+      {dot && <span className="size-1.5 rounded-full" style={{ backgroundColor: s.dot }} />}
       {children}
     </span>
   )
@@ -49,7 +83,7 @@ export function Badge({ children, variant = 'default', size = 'md', dot = false,
 
 export function StatusBadge({ status }: { status: 'draft' | 'published' }) {
   return (
-    <Badge variant={status === 'published' ? 'green' : 'default'} dot>
+    <Badge variant={status === 'published' ? 'success' : 'default'} dot>
       {status}
     </Badge>
   )
@@ -57,9 +91,9 @@ export function StatusBadge({ status }: { status: 'draft' | 'published' }) {
 
 export function SessionStateBadge({ state }: { state: 'lobby' | 'live' | 'paused' | 'completed' }) {
   const map = {
-    lobby:     { variant: 'blue'    as const, label: 'Lobby'     },
-    live:      { variant: 'green'   as const, label: 'Live'      },
-    paused:    { variant: 'yellow'  as const, label: 'Paused'    },
+    lobby:     { variant: 'info'    as const, label: 'Lobby'     },
+    live:      { variant: 'success' as const, label: 'Live'      },
+    paused:    { variant: 'warning' as const, label: 'Paused'    },
     completed: { variant: 'default' as const, label: 'Ended'     },
   }
   const { variant, label } = map[state]

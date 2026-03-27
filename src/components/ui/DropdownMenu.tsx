@@ -68,7 +68,7 @@ export function DropdownMenu({ trigger, children, align = 'right' }: DropdownMen
 
   return (
     <Ctx.Provider value={{ close }}>
-      <div ref={triggerRef} onClick={toggle} className="inline-flex">
+      <div ref={triggerRef} onClick={toggle} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle() } }} className="inline-flex">
         {trigger}
       </div>
 
@@ -76,7 +76,7 @@ export function DropdownMenu({ trigger, children, align = 'right' }: DropdownMen
         <div
           ref={menuRef}
           role="menu"
-          className="fixed z-[200] min-w-[160px] overflow-hidden rounded-2xl border border-white/10 bg-[#18141d]/98 py-1 shadow-2xl backdrop-blur-md"
+          className="light-host fixed z-[200] min-w-[160px] overflow-hidden rounded-2xl border border-edge bg-raised py-1 shadow-2xl backdrop-blur-md"
           style={{
             top: pos.top,
             ...(align === 'right'
@@ -119,8 +119,8 @@ export function DropdownItem({
 
   const colorClass =
     variant === 'danger'
-      ? 'text-rose-300 hover:bg-rose-400/10'
-      : 'text-white/80 hover:bg-white/8 hover:text-white'
+      ? 'text-err-fg hover:bg-err-tint'
+      : 'text-md hover:bg-fill-lo hover:text-hi'
 
   return (
     <button
@@ -128,7 +128,7 @@ export function DropdownItem({
       type="button"
       disabled={disabled}
       onClick={handleClick}
-      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition ${colorClass} disabled:cursor-not-allowed disabled:opacity-40`}
+      className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:outline-offset-[-2px] ${colorClass} disabled:cursor-not-allowed disabled:opacity-40`}
     >
       {icon && <span className="size-4 shrink-0 [&>svg]:size-4">{icon}</span>}
       {children}
@@ -139,5 +139,5 @@ export function DropdownItem({
 // ─── Separator ────────────────────────────────────────────────────────────────
 
 export function DropdownSeparator() {
-  return <div className="my-1 border-t border-white/8" />
+  return <div className="my-1 border-t border-line" />
 }

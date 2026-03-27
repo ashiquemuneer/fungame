@@ -1,4 +1,4 @@
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { forwardRef, type ButtonHTMLAttributes, type CSSProperties, type ReactNode } from 'react'
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger'
 type Size    = 'sm' | 'md' | 'lg'
@@ -11,17 +11,33 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconRight?: ReactNode
 }
 
+// primary / secondary / ghost use the CSS classes in index.css which
+// already reference token vars.  Danger defines its own token-based style.
 const variantClass: Record<Variant, string> = {
   primary:   'button-primary',
   secondary: 'button-secondary',
   ghost:     'button-ghost',
-  danger:    'inline-flex items-center justify-center gap-2 rounded-full bg-rose-500/20 border border-rose-400/30 px-5 py-3 font-semibold text-rose-300 transition hover:bg-rose-500/30 hover:border-rose-400/50 disabled:cursor-not-allowed disabled:opacity-50',
+  danger:    'inline-flex items-center justify-center gap-2 rounded-full border px-5 py-3 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50',
 }
 
+// Danger uses token-backed inline styles (not raw Tailwind palette)
+const dangerStyle = {
+  backgroundColor: 'var(--danger-container)',
+  borderColor:     'var(--danger-outline)',
+  color:           'var(--danger-foreground)',
+} as const
+
 const sizeClass: Record<Size, string> = {
-  sm: 'px-3 py-1.5 text-xs gap-1.5',
-  md: '',          // default — classes come from variant
-  lg: 'px-7 py-4 text-base',
+  sm: 'text-xs gap-1.5',
+  md: '',
+  lg: 'text-base',
+}
+
+// Inline styles win over @apply padding in component classes (Tailwind v4 layer order)
+const sizeStyle: Record<Size, React.CSSProperties> = {
+  sm: { paddingInline: '0.75rem', paddingBlock: '0.375rem' },
+  md: {},
+  lg: { paddingInline: '1.75rem', paddingBlock: '1rem' },
 }
 
 const Spinner = () => (
@@ -32,14 +48,20 @@ const Spinner = () => (
 )
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'primary', size = 'md', loading = false, icon, iconRight, children, className = '', disabled, ...rest }, ref) => {
+  ({ variant = 'primary', size = 'md', loading = false, icon, iconRight, children, className = '', disabled, style, ...rest }, ref) => {
     const base = variantClass[variant]
     const sz   = sizeClass[size]
+    const mergedStyle: CSSProperties = {
+      ...(variant === 'danger' ? dangerStyle : {}),
+      ...sizeStyle[size],
+      ...style,
+    }
     return (
       <button
         ref={ref}
         disabled={disabled || loading}
         className={`${base} ${sz} ${className}`.trim()}
+        style={mergedStyle}
         {...rest}
       >
         {loading ? <Spinner /> : icon}

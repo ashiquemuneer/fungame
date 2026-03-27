@@ -7,7 +7,7 @@ interface ModalProps {
   title?: string
   description?: string
   children: ReactNode
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   /** Clicking the backdrop closes the modal. Default: true */
   closeOnBackdrop?: boolean
 }
@@ -16,6 +16,7 @@ const sizeClass = {
   sm: 'max-w-sm',
   md: 'max-w-md',
   lg: 'max-w-lg',
+  xl: 'max-w-5xl',
 }
 
 export function Modal({
@@ -47,14 +48,14 @@ export function Modal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="light-host fixed inset-0 z-50 flex items-center justify-center p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? 'modal-title' : undefined}
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 bg-[var(--overlay-lg)] backdrop-blur-sm"
         onClick={closeOnBackdrop ? onClose : undefined}
       />
 
@@ -68,12 +69,12 @@ export function Modal({
         {(title || description) && (
           <div className="mb-5">
             {title && (
-              <h2 id="modal-title" className="text-lg font-semibold text-white">
+              <h2 id="modal-title" className="text-lg font-semibold text-hi">
                 {title}
               </h2>
             )}
             {description && (
-              <p className="mt-1 text-sm text-white/55">{description}</p>
+              <p className="mt-1 text-sm text-lo">{description}</p>
             )}
           </div>
         )}
@@ -81,7 +82,7 @@ export function Modal({
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-xl p-1.5 text-white/40 transition hover:bg-white/10 hover:text-white/70"
+          className="absolute right-4 top-4 rounded-xl p-1.5 text-lo transition hover:bg-fill-hi hover:text-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:outline-offset-1"
           aria-label="Close"
         >
           <svg className="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

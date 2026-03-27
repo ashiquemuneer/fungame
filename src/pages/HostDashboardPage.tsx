@@ -1,527 +1,237 @@
 import { useMemo, useState } from 'react'
 import {
-  ArrowRight,
-  BookOpen,
-  Copy,
-  CopyPlus,
-  Edit3,
-  MessageSquare,
-  MoreHorizontal,
-  Play,
-  RadioTower,
-  RotateCcw,
-  SortAsc,
-  Trash2,
-  Users,
-  Zap,
-  QrCode,
-  Lightbulb,
+  BookOpen, Coffee, Laugh, Play, Plus, QrCode, RadioTower, Users, Zap,
 } from 'lucide-react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { formatDate } from '../lib/utils'
+import { Link, useNavigate } from 'react-router-dom'
+import { coverGradient, formatDate } from '../lib/utils'
 import { useGameStore } from '../state/game-store'
-import {
-  ConfirmDialog,
-  DropdownItem,
-  DropdownMenu,
-  DropdownSeparator,
-  NoGamesEmpty,
-  NoSessionsEmpty,
-  SessionStateBadge,
-  StatusBadge,
-  Tooltip,
-  useToast,
-} from '../components/ui'
+import { Modal, useToast } from '../components/ui'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type SortKey = 'newest' | 'oldest' | 'name_asc' | 'name_desc'
-
-// ─── Quick-start chip templates ───────────────────────────────────────────────
+// ─── Quick-start chips ────────────────────────────────────────────────────────
 
 const QUICK_STARTS = [
-  { label: 'Office trivia',    emoji: '🏢', title: 'Office Trivia',       description: 'Fun facts about our team and workplace.' },
-  { label: 'Icebreaker round', emoji: '🧊', title: 'Icebreaker Round',    description: 'Light questions to warm up the room.'      },
-  { label: 'Team quiz',        emoji: '🏆', title: 'Team Knowledge Quiz', description: 'Test what the team knows.'                 },
-  { label: 'Fun emoji game',   emoji: '😄', title: 'Emoji Challenge',     description: 'Answer with emojis — anything goes.'       },
+  { label: 'Office trivia',  icon: BookOpen, title: 'Office Trivia'  },
+  { label: 'Icebreaker',     icon: Coffee,   title: 'Icebreaker'     },
+  { label: 'Team quiz',      icon: Users,    title: 'Team Quiz'      },
+  { label: 'Friday fun',     icon: Laugh,    title: 'Friday Fun'     },
 ]
 
-// ─── Popular templates ────────────────────────────────────────────────────────
-
-const TEMPLATES = [
-  {
-    emoji: '🌍',
-    title: 'World Geography',
-    description: 'Capitals, flags and landmarks.',
-    questions: 5,
-    color: 'from-sky-500/10 to-sky-400/5 border-sky-400/15',
-  },
-  {
-    emoji: '🎬',
-    title: 'Movie Night Trivia',
-    description: 'Films, actors and iconic quotes.',
-    questions: 6,
-    color: 'from-violet-500/10 to-violet-400/5 border-violet-400/15',
-  },
-  {
-    emoji: '🧠',
-    title: 'General Knowledge',
-    description: 'Mixed topics for all audiences.',
-    questions: 8,
-    color: 'from-emerald-500/10 to-emerald-400/5 border-emerald-400/15',
-  },
-  {
-    emoji: '🏢',
-    title: 'Team Icebreaker',
-    description: 'Get to know your colleagues.',
-    questions: 5,
-    color: 'from-orange-500/10 to-orange-400/5 border-orange-400/15',
-  },
-]
-
-// ─── Onboarding strip ─────────────────────────────────────────────────────────
+// ─── How it works ─────────────────────────────────────────────────────────────
 
 const HOW_IT_WORKS = [
-  { icon: BookOpen, label: '1. Build', description: 'Create a question set in your library.' },
-  { icon: QrCode,   label: '2. Host',  description: 'Start a room and share the QR code.'    },
-  { icon: Zap,      label: '3. Play',  description: 'Players join and answer in real time.'   },
+  { icon: BookOpen, label: 'Build',  description: 'Create a question set in your library.' },
+  { icon: QrCode,   label: 'Host',   description: 'Start a room and share the QR code.'    },
+  { icon: Zap,      label: 'Play',   description: 'Players join and answer in real time.'   },
 ]
-
-// ─── Sort helpers ─────────────────────────────────────────────────────────────
-
-const SORT_LABELS: Record<SortKey, string> = {
-  newest:    'Newest first',
-  oldest:    'Oldest first',
-  name_asc:  'Name A → Z',
-  name_desc: 'Name Z → A',
-}
-
-function applySortKey<T extends { title: string; createdAt?: string; updatedAt?: string }>(
-  items: T[],
-  key: SortKey,
-): T[] {
-  const arr = [...items]
-  if (key === 'newest') return arr.sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() - new Date(a.updatedAt ?? a.createdAt ?? 0).getTime())
-  if (key === 'oldest') return arr.sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime())
-  if (key === 'name_asc')  return arr.sort((a, b) => a.title.localeCompare(b.title))
-  if (key === 'name_desc') return arr.sort((a, b) => b.title.localeCompare(a.title))
-  return arr
-}
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function HostDashboardPage() {
-  const navigate    = useNavigate()
-  const [searchParams] = useSearchParams()
-  const searchQuery = searchParams.get('q')?.toLowerCase() ?? ''
-
-  const { state, hostEmail, createGame, deleteGame, duplicateGame, createSession, getGame, resetDemo } = useGameStore()
+  const navigate  = useNavigate()
+  const { state, hostEmail, createGame, createSession } = useGameStore()
   const toast = useToast()
 
-  const [title,    setTitle]   = useState('')
-  const [description, setDesc] = useState('')
-  const [sortKey,  setSortKey] = useState<SortKey>('newest')
+  const [showCreate,   setShowCreate]  = useState(false)
+  const [createTitle,  setCreateTitle] = useState('')
+  const [startingRoom, setStartingRoom] = useState<string | null>(null)
 
-  const [deleteTarget,  setDeleteTarget]  = useState<{ id: string; title: string } | null>(null)
-  const [deleteLoading, setDeleteLoading] = useState(false)
-  const [startingRoom,  setStartingRoom]  = useState<string | null>(null)
-
-  const sessionsWithGame = useMemo(
-    () => state.sessions.map((session) => ({ session, game: getGame(session.gameId) })),
-    [getGame, state.sessions],
-  )
+  const firstName = hostEmail?.split('@')[0] ?? 'there'
 
   const stats = [
-    { label: 'Question sets', value: state.games.length,                                             icon: BookOpen   },
-    { label: 'Open rooms',    value: state.sessions.filter((s) => s.state !== 'completed').length,   icon: RadioTower },
-    { label: 'Players total', value: state.players.length,                                            icon: Users      },
+    { label: 'Question sets', value: state.games.length,                                           icon: BookOpen   },
+    { label: 'Open rooms',    value: state.sessions.filter((s) => s.state !== 'completed').length, icon: RadioTower },
+    { label: 'Players total', value: state.players.length,                                          icon: Users      },
   ]
 
   const recentGames = useMemo(
     () =>
       [...state.games]
         .sort((a, b) => new Date(b.updatedAt ?? b.createdAt ?? 0).getTime() - new Date(a.updatedAt ?? a.createdAt ?? 0).getTime())
-        .slice(0, 4),
+        .slice(0, 3),
     [state.games],
   )
 
-  const filteredGames = useMemo(() => {
-    const searched = searchQuery
-      ? state.games.filter(
-          (g) =>
-            g.title.toLowerCase().includes(searchQuery) ||
-            g.description?.toLowerCase().includes(searchQuery),
-        )
-      : state.games
-    return applySortKey(searched, sortKey)
-  }, [state.games, searchQuery, sortKey])
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!createTitle.trim()) return
+    const id = createGame(createTitle.trim(), '')
+    setCreateTitle('')
+    setShowCreate(false)
+    navigate(`/host/games/${id}`)
+  }
 
   const handleStartRoom = async (gameId: string) => {
     setStartingRoom(gameId)
     try {
       const sessionId = await createSession(gameId)
-      if (!sessionId) { toast.error('Failed to create room', 'Check your connection and try again.'); return }
+      if (!sessionId) { toast.error('Failed to start room', 'Check connection and try again.'); return }
       navigate(`/host/sessions/${sessionId}`)
     } finally {
       setStartingRoom(null)
     }
   }
 
-  const handleDuplicate = (gameId: string, gameTitle: string) => {
-    const newId = duplicateGame(gameId)
-    if (newId) {
-      toast.success('Game duplicated', `"${gameTitle} (copy)" is ready to edit.`)
-    }
-  }
-
-  const firstName = hostEmail?.split('@')[0] ?? 'there'
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
 
-      {/* ── Welcome + stats ── */}
-      <section>
-        <h1 className="text-2xl font-semibold text-white">
-          Welcome back, <span className="text-orange-200">{firstName}</span>!
-        </h1>
-        <p className="mt-1 text-sm text-white/45">Here's what's happening with your games.</p>
-
-        <div className="mt-4 grid grid-cols-3 gap-3 sm:gap-4">
-          {stats.map(({ label, value, icon: Icon }) => (
-            <div key={label} className="panel flex items-center gap-3 p-4">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-orange-300/12 text-orange-200">
-                <Icon className="size-5" />
-              </div>
-              <div>
-                <p className="text-2xl font-semibold text-white">{value}</p>
-                <p className="text-xs text-white/45">{label}</p>
-              </div>
-            </div>
-          ))}
+      {/* ── Welcome + create ── */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-hi">
+            Welcome back, <span className="text-accent-text">{firstName}</span>
+          </h1>
+          <p className="mt-1 text-sm text-dim">What are we playing today?</p>
         </div>
-      </section>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowCreate(true)} className="button-primary">
+            <Plus className="size-4" />
+            New game
+          </button>
+        </div>
+      </div>
+
+      {/* ── Stats ── */}
+      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        {stats.map(({ label, value, icon: Icon }) => (
+          <div key={label} className="panel flex items-center gap-3 p-4">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-accent-dim text-accent-text">
+              <Icon className="size-5" />
+            </div>
+            <div>
+              <p className="text-2xl font-semibold text-hi">{value}</p>
+              <p className="text-xs text-dim">{label}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Quick-start chips ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-subtle shrink-0">Quick start:</span>
+        {QUICK_STARTS.map(({ label, icon: Icon, title }) => (
+          <button
+            key={label}
+            onClick={() => {
+              const id = createGame(title, '')
+              navigate(`/host/games/${id}`)
+            }}
+            className="flex items-center gap-1.5 rounded-full border border-line bg-fill px-3 py-1.5 text-xs text-lo transition hover:border-accent-dim hover:bg-accent-dim hover:text-accent-text"
+          >
+            <Icon className="size-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
 
       {/* ── Recently edited ── */}
       {recentGames.length > 0 && (
         <section>
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/45">Recently edited</h2>
-            <button
-              onClick={() => document.getElementById('game-library')?.scrollIntoView({ behavior: 'smooth' })}
-              className="text-xs text-white/35 hover:text-white/60 transition"
-            >
+            <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-dim">Recently edited</h2>
+            <Link to="/host/my-games" className="text-xs text-faded hover:text-lo transition">
               See all →
-            </button>
+            </Link>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {recentGames.map((game) => (
-              <Link
-                key={game.id}
-                to={`/host/games/${game.id}`}
-                className="group panel flex flex-col gap-2 p-4 transition hover:border-orange-300/20"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <StatusBadge status={game.status} />
-                  <span className="text-xs text-white/30">{game.questions.length}q</span>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {recentGames.map((game) => {
+              const grad = coverGradient(game.id)
+              const hasQuestions = game.questions.length > 0
+              const isStarting   = startingRoom === game.id
+              return (
+                <div
+                  key={game.id}
+                  className="group panel flex flex-col overflow-hidden p-0 transition hover:border-rim"
+                >
+                  {/* Cover */}
+                  <button
+                    onClick={() => navigate(`/host/games/${game.id}`)}
+                    className={`relative flex h-36 w-full items-center justify-center bg-gradient-to-br ${grad} transition group-hover:brightness-110`}
+                  >
+                    <BookOpen className="size-10 text-md" />
+                    <span className="absolute bottom-3 right-3 rounded-lg bg-[var(--overlay-sm)] px-2 py-0.5 text-[11px] text-md backdrop-blur-sm">
+                      {game.questions.length} question{game.questions.length !== 1 ? 's' : ''}
+                    </span>
+                  </button>
+
+                  {/* Info */}
+                  <div className="flex flex-1 flex-col gap-1 p-4">
+                    <button
+                      onClick={() => navigate(`/host/games/${game.id}`)}
+                      className="line-clamp-1 text-left text-base font-semibold text-md hover:text-hi transition"
+                    >
+                      {game.title}
+                    </button>
+                    <p className="text-xs text-faded">
+                      Edited {formatDate(game.updatedAt ?? game.createdAt ?? '')}
+                    </p>
+                    <div className="mt-3 flex items-center gap-2">
+                      <button
+                        className="button-secondary flex-1 justify-center text-xs"
+                        onClick={() => navigate(`/host/games/${game.id}`)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="button-primary flex-1 justify-center text-xs disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={!hasQuestions || isStarting}
+                        onClick={() => handleStartRoom(game.id)}
+                      >
+                        <Play className="size-3.5" />
+                        {isStarting ? 'Starting…' : 'Start'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-                <p className="line-clamp-2 text-sm font-medium text-white/80 group-hover:text-white transition">
-                  {game.title}
-                </p>
-                <p className="text-[11px] text-white/30">
-                  {formatDate(game.updatedAt ?? game.createdAt ?? '')}
-                </p>
-              </Link>
-            ))}
+              )
+            })}
           </div>
         </section>
       )}
 
-      {/* ── Quick-start chips + create form ── */}
-      <section className="panel p-5">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex size-9 items-center justify-center rounded-xl bg-white/8 text-orange-100">
-            <CopyPlus className="size-5" />
-          </div>
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Create a game</p>
-            <h2 className="text-lg font-semibold text-white">New question set</h2>
-          </div>
-        </div>
-
-        <div className="mb-4 flex flex-wrap gap-2">
-          {QUICK_STARTS.map((qs) => (
-            <button
-              key={qs.label}
-              type="button"
-              onClick={() => { const id = createGame(qs.title, qs.description); navigate(`/host/games/${id}`) }}
-              className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3 py-1.5 text-xs font-medium text-white/70 transition hover:border-orange-300/25 hover:bg-orange-300/8 hover:text-orange-200"
-            >
-              <span>{qs.emoji}</span>
-              {qs.label}
-            </button>
-          ))}
-        </div>
-
-        <form
-          className="flex flex-col gap-3 sm:flex-row"
-          onSubmit={(e) => {
-            e.preventDefault()
-            const id = createGame(title.trim(), description.trim())
-            setTitle(''); setDesc('')
-            navigate(`/host/games/${id}`)
-          }}
-        >
-          <input
-            className="input flex-1"
-            placeholder="Game title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
-          <input
-            className="input flex-1"
-            placeholder="Short description (optional)"
-            value={description}
-            onChange={(e) => setDesc(e.target.value)}
-          />
-          <button className="button-primary shrink-0" type="submit">Create game</button>
-        </form>
-
-        <div className="mt-3 flex justify-end">
-          <button className="button-ghost text-xs" type="button" onClick={resetDemo}>
-            <RotateCcw className="size-3.5" />
-            Reset demo data
-          </button>
-        </div>
-      </section>
-
-      {/* ── Popular templates ── */}
+      {/* ── How it works — kept at bottom ── */}
       <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/45">Popular templates</h2>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {TEMPLATES.map((tpl) => (
-            <button
-              key={tpl.title}
-              type="button"
-              onClick={() => { const id = createGame(tpl.title, tpl.description); navigate(`/host/games/${id}`) }}
-              className={`group flex flex-col items-start gap-2 rounded-3xl border bg-gradient-to-br p-4 text-left transition hover:scale-[1.02] ${tpl.color}`}
-            >
-              <span className="text-2xl">{tpl.emoji}</span>
-              <div>
-                <p className="text-sm font-semibold text-white/85 group-hover:text-white transition">{tpl.title}</p>
-                <p className="mt-0.5 text-xs leading-5 text-white/40">{tpl.description}</p>
-              </div>
-              <span className="mt-auto text-[11px] text-white/30">{tpl.questions} questions</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      {/* ── How it works strip ── */}
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-white/45">How it works</h2>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-[0.12em] text-faded">How it works</h2>
         <div className="grid gap-3 sm:grid-cols-3">
           {HOW_IT_WORKS.map(({ icon: Icon, label, description }) => (
             <div key={label} className="panel flex items-start gap-3 p-4">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/6 text-white/40">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-fill-hi text-dim">
                 <Icon className="size-4" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white/80">{label}</p>
-                <p className="mt-0.5 text-xs leading-5 text-white/45">{description}</p>
+                <p className="text-sm font-semibold text-md">{label}</p>
+                <p className="mt-0.5 text-xs leading-5 text-dim">{description}</p>
               </div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── Game library ── */}
-      <section id="game-library">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-white/40">Games</p>
-            <h2 className="text-xl font-semibold text-white">
-              Question library
-              {searchQuery && (
-                <span className="ml-2 text-sm font-normal text-white/40">
-                  — "{searchQuery}" ({filteredGames.length} results)
-                </span>
-              )}
-            </h2>
+      {/* ── Create modal ── */}
+      <Modal
+        open={showCreate}
+        onClose={() => { setShowCreate(false); setCreateTitle('') }}
+        title="New question set"
+        size="sm"
+      >
+        <form onSubmit={handleCreate} className="mt-4 space-y-4">
+          <input
+            className="input w-full"
+            placeholder="e.g. Office Trivia, Team Quiz…"
+            value={createTitle}
+            onChange={(e) => setCreateTitle(e.target.value)}
+            autoFocus
+            required
+          />
+          <div className="flex justify-end gap-2">
+            <button type="button" className="button-ghost" onClick={() => setShowCreate(false)}>
+              Cancel
+            </button>
+            <button type="submit" className="button-primary" disabled={!createTitle.trim()}>
+              Create & Edit
+            </button>
           </div>
-
-          {/* Sort dropdown */}
-          <DropdownMenu
-            trigger={
-              <button className="button-ghost flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2 text-xs text-white/55 hover:text-white/80">
-                <SortAsc className="size-3.5" />
-                {SORT_LABELS[sortKey]}
-              </button>
-            }
-            align="right"
-          >
-            {(Object.entries(SORT_LABELS) as [SortKey, string][]).map(([key, label]) => (
-              <DropdownItem
-                key={key}
-                onClick={() => setSortKey(key)}
-              >
-                {label}
-                {sortKey === key && <span className="ml-auto text-orange-300">✓</span>}
-              </DropdownItem>
-            ))}
-          </DropdownMenu>
-        </div>
-
-        <div className="space-y-2.5">
-          {filteredGames.length === 0 ? (
-            searchQuery ? (
-              <div className="panel flex items-center justify-center py-12 text-white/40">
-                <div className="text-center">
-                  <Lightbulb className="mx-auto mb-3 size-8 opacity-30" />
-                  <p className="text-sm">No games match "{searchQuery}"</p>
-                </div>
-              </div>
-            ) : (
-              <NoGamesEmpty
-                onCreateGame={() => document.querySelector<HTMLInputElement>('input[placeholder="Game title"]')?.focus()}
-              />
-            )
-          ) : (
-            filteredGames.map((game) => {
-              const hasQuestions = game.questions.length > 0
-              const isStarting   = startingRoom === game.id
-
-              return (
-                <div key={game.id} className="panel overflow-hidden p-4">
-                  <div className="flex items-start gap-4">
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-semibold text-white">{game.title}</h3>
-                        <StatusBadge status={game.status} />
-                      </div>
-                      {game.description && (
-                        <p className="line-clamp-1 text-sm text-white/50">{game.description}</p>
-                      )}
-                      <span className={`flex items-center gap-1.5 text-xs ${hasQuestions ? 'text-white/40' : 'text-amber-300'}`}>
-                        <MessageSquare className="size-3" />
-                        {game.questions.length} question{game.questions.length !== 1 ? 's' : ''}
-                        {!hasQuestions && ' — add questions first'}
-                      </span>
-                    </div>
-
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Link className="button-secondary hidden sm:inline-flex" to={`/host/games/${game.id}`}>
-                        <Edit3 className="size-4" />
-                        Edit
-                      </Link>
-
-                      <Tooltip content={hasQuestions ? 'Start a live room' : 'Add questions first'} side="top">
-                        <button
-                          className="button-primary disabled:cursor-not-allowed disabled:opacity-40"
-                          disabled={!hasQuestions || isStarting}
-                          onClick={() => handleStartRoom(game.id)}
-                        >
-                          {isStarting ? (
-                            <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                            </svg>
-                          ) : (
-                            <Play className="size-4" />
-                          )}
-                          <span className="hidden sm:inline">Start room</span>
-                        </button>
-                      </Tooltip>
-
-                      <DropdownMenu
-                        trigger={
-                          <button className="button-ghost rounded-full border border-white/10 px-2.5 py-2.5 text-white/50 hover:text-white/80">
-                            <MoreHorizontal className="size-4" />
-                          </button>
-                        }
-                        align="right"
-                      >
-                        <DropdownItem icon={<Edit3 />} onClick={() => navigate(`/host/games/${game.id}`)}>
-                          Edit set
-                        </DropdownItem>
-                        <DropdownItem icon={<Copy />} onClick={() => handleDuplicate(game.id, game.title)}>
-                          Duplicate
-                        </DropdownItem>
-                        <DropdownItem icon={<Play />} onClick={() => handleStartRoom(game.id)} disabled={!hasQuestions}>
-                          Start room
-                        </DropdownItem>
-                        <DropdownSeparator />
-                        <DropdownItem
-                          icon={<Trash2 />}
-                          variant="danger"
-                          onClick={() => setDeleteTarget({ id: game.id, title: game.title })}
-                        >
-                          Delete
-                        </DropdownItem>
-                      </DropdownMenu>
-                    </div>
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-      </section>
-
-      {/* ── Rooms in motion ── */}
-      <section>
-        <div className="mb-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-white/40">Recent sessions</p>
-          <h2 className="text-xl font-semibold text-white">Rooms in motion</h2>
-        </div>
-
-        <div className="grid gap-2.5 xl:grid-cols-2">
-          {sessionsWithGame.length === 0 ? (
-            <NoSessionsEmpty />
-          ) : (
-            sessionsWithGame.map(({ session, game }) => (
-              <div key={session.id} className="panel p-4">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <p className="font-mono text-xs uppercase tracking-[0.3em] text-orange-200/80">{session.roomCode}</p>
-                    <h3 className="mt-2 truncate text-base font-semibold text-white">{game?.title ?? 'Untitled game'}</h3>
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <SessionStateBadge state={session.state} />
-                      <span className="text-xs text-white/35">·</span>
-                      <span className="text-xs text-white/45">{formatDate(session.createdAt)}</span>
-                    </div>
-                  </div>
-                  <Link className="button-secondary shrink-0" to={`/host/sessions/${session.id}`}>
-                    {session.state === 'live' ? <><Play className="size-4" />Open</> : <>View<ArrowRight className="size-4" /></>}
-                  </Link>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
-      {/* ── Delete confirm ── */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={() => { if (!deleteLoading) setDeleteTarget(null) }}
-        onConfirm={async () => {
-          if (!deleteTarget) return
-          setDeleteLoading(true)
-          deleteGame(deleteTarget.id)
-          toast.success('Game deleted', `"${deleteTarget.title}" has been removed.`)
-          setDeleteLoading(false)
-          setDeleteTarget(null)
-        }}
-        title="Delete this game?"
-        description={`"${deleteTarget?.title}" and all its questions will be permanently deleted. This cannot be undone.`}
-        confirmLabel="Delete game"
-        cancelLabel="Keep it"
-        variant="danger"
-        loading={deleteLoading}
-      />
+        </form>
+      </Modal>
     </div>
   )
 }

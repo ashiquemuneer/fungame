@@ -21,7 +21,7 @@ export function resolveSlideLayout(
 }
 
 export function getVerticalOptionGridStyle(optionCount: number) {
-  const rowCount = Math.max(1, Math.min(optionCount, 4))
+  const rowCount = Math.max(1, Math.min(optionCount, 5))
 
   return {
     gridTemplateRows: `repeat(${rowCount}, minmax(0, 1fr))`,

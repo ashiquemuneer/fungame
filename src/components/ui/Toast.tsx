@@ -36,20 +36,20 @@ export function useToast() {
 
 const variantStyles: Record<ToastVariant, { border: string; icon: ReactNode }> = {
   success: {
-    border: 'border-emerald-400/25',
-    icon: <CheckCircle className="size-4 shrink-0 text-emerald-300" />,
+    border: 'border-ok-line',
+    icon: <CheckCircle className="size-4 shrink-0 text-ok-fg" />,
   },
   error: {
-    border: 'border-rose-400/25',
-    icon: <XCircle className="size-4 shrink-0 text-rose-300" />,
+    border: 'border-err-line',
+    icon: <XCircle className="size-4 shrink-0 text-err-fg" />,
   },
   warning: {
-    border: 'border-amber-400/25',
-    icon: <AlertCircle className="size-4 shrink-0 text-amber-300" />,
+    border: 'border-warn-line',
+    icon: <AlertCircle className="size-4 shrink-0 text-warn-fg" />,
   },
   info: {
-    border: 'border-sky-400/25',
-    icon: <Info className="size-4 shrink-0 text-sky-300" />,
+    border: 'border-note-line',
+    icon: <Info className="size-4 shrink-0 text-note-fg" />,
   },
 }
 
@@ -68,20 +68,20 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: strin
 
   return (
     <div
-      className={`pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border ${border} bg-[#18141d]/95 p-4 shadow-xl backdrop-blur-md`}
+      className={`pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-2xl border ${border} bg-raised p-4 shadow-xl backdrop-blur-md`}
       style={{ animation: 'toastIn 0.2s ease-out' }}
       role="alert"
     >
       <span className="mt-0.5">{icon}</span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-white">{item.title}</p>
+        <p className="text-sm font-semibold text-hi">{item.title}</p>
         {item.description && (
-          <p className="mt-0.5 text-xs leading-relaxed text-white/55">{item.description}</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-lo">{item.description}</p>
         )}
       </div>
       <button
         onClick={() => onDismiss(item.id)}
-        className="shrink-0 rounded-lg p-1 text-white/30 transition hover:bg-white/10 hover:text-white/60"
+        className="shrink-0 rounded-lg p-1 text-dim transition hover:bg-fill-hi hover:text-md focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:outline-offset-1"
         aria-label="Dismiss"
       >
         <X className="size-3.5" />
@@ -116,7 +116,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       {createPortal(
-        <div className="pointer-events-none fixed bottom-5 right-5 z-[100] flex flex-col gap-2">
+        <div className="light-host pointer-events-none fixed bottom-5 right-5 z-[100] flex flex-col gap-2">
           {toasts.map((t) => (
             <ToastCard key={t.id} item={t} onDismiss={dismiss} />
           ))}

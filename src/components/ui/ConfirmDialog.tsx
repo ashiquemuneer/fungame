@@ -28,8 +28,8 @@ export function ConfirmDialog({
     <Modal open={open} onClose={onClose} size="sm" closeOnBackdrop={!loading}>
       <div className="flex flex-col gap-5">
         <div>
-          <h2 className="text-base font-semibold text-white">{title}</h2>
-          {description && <p className="mt-2 text-sm leading-relaxed text-white/55">{description}</p>}
+          <h2 className="text-base font-semibold text-hi">{title}</h2>
+          {description && <p className="mt-2 text-sm leading-relaxed text-lo">{description}</p>}
         </div>
 
         <div className="flex justify-end gap-2">

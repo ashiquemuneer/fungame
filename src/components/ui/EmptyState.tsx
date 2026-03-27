@@ -16,17 +16,17 @@ export function EmptyState({ icon, title, description, action, size = 'page', cl
   return (
     <div className={`flex flex-col items-center justify-center text-center ${isPage ? 'py-20 px-6' : 'py-10 px-4'} ${className}`}>
       {icon && (
-        <div className={`mb-4 rounded-3xl border border-white/8 bg-white/5 p-4 text-white/30 ${isPage ? 'size-16' : 'size-12'} flex items-center justify-center`}>
+        <div className={`mb-4 rounded-3xl border border-line bg-fill p-4 text-dim ${isPage ? 'size-16' : 'size-12'} flex items-center justify-center`}>
           <span className={isPage ? '[&>svg]:size-7' : '[&>svg]:size-5'}>{icon}</span>
         </div>
       )}
 
-      <h3 className={`font-semibold text-white/70 ${isPage ? 'text-base' : 'text-sm'}`}>
+      <h3 className={`font-semibold text-lo ${isPage ? 'text-base' : 'text-sm'}`}>
         {title}
       </h3>
 
       {description && (
-        <p className={`mt-1.5 max-w-xs text-white/40 ${isPage ? 'text-sm' : 'text-xs'}`}>
+        <p className={`mt-1.5 max-w-xs text-lo ${isPage ? 'text-sm' : 'text-xs'}`}>
           {description}
         </p>
       )}

@@ -33,7 +33,7 @@ export function Tooltip({ content, children, side = 'top', delay = 500 }: Toolti
       {children}
       {visible && (
         <span
-          className={`pointer-events-none absolute z-50 whitespace-nowrap rounded-xl border border-white/10 bg-[#18141d]/95 px-3 py-1.5 text-xs text-white/80 shadow-lg backdrop-blur-md ${positionClass}`}
+          className={`pointer-events-none absolute z-50 whitespace-nowrap rounded-xl border border-edge bg-raised px-3 py-1.5 text-xs text-md shadow-lg backdrop-blur-md ${positionClass}`}
           role="tooltip"
         >
           {content}

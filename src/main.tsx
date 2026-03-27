@@ -5,6 +5,7 @@ import { GameStoreProvider } from './state/game-store'
 import { SupabaseStoreProvider } from './state/supabase-store'
 import { HostAccessProvider } from './state/host-access'
 import { ToastProvider } from './components/ui'
+import { ThemeProvider } from './state/theme'
 import { isSupabaseConfigured } from './lib/supabase'
 import './index.css'
 
@@ -18,13 +19,13 @@ class ErrorBoundary extends Component<PropsWithChildren, { error: Error | null }
   render(): ReactNode {
     if (this.state.error) {
       return (
-        <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-white">
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-8 text-[var(--text-primary)]">
           <p className="text-lg font-semibold">Something went wrong</p>
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-[var(--text-primary)]/60">
             Try refreshing the page. If this keeps happening, open in an incognito window.
           </p>
           <button
-            className="rounded-full bg-white/10 px-5 py-2 text-sm hover:bg-white/20"
+            className="rounded-full bg-[var(--state-hover)] px-5 py-2 text-sm hover:bg-[var(--outline-strong)]"
             onClick={() => window.location.reload()}
           >
             Reload
@@ -39,13 +40,15 @@ class ErrorBoundary extends Component<PropsWithChildren, { error: Error | null }
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>
-      <HostAccessProvider>
-        <StoreProvider>
-          <ToastProvider>
-            <App />
-          </ToastProvider>
-        </StoreProvider>
-      </HostAccessProvider>
+      <ThemeProvider>
+        <HostAccessProvider>
+          <StoreProvider>
+            <ToastProvider>
+              <App />
+            </ToastProvider>
+          </StoreProvider>
+        </HostAccessProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   </StrictMode>,
 )

@@ -1,126 +1,96 @@
-import { LogOut, ShieldCheck, Trophy, WandSparkles } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
+import { LayoutDashboard, LogIn, LogOut, Trophy, WandSparkles } from 'lucide-react'
+import { Link, NavLink } from 'react-router-dom'
 import type { PropsWithChildren } from 'react'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useHostAccess } from '../state/host-access'
 import { useGameStore } from '../state/game-store'
 import { cn } from '../lib/utils'
-import { useLocation } from 'react-router-dom'
 
 export function AppShell({ children }: PropsWithChildren) {
-  const location = useLocation()
   const { isUnlocked, logout } = useHostAccess()
-  const { isHostAuthenticated, hostEmail, signOut } = useGameStore()
-  const isHostRoute = location.pathname.startsWith('/host')
+  const { isHostAuthenticated, signOut } = useGameStore()
 
-  const showHostLink = isSupabaseConfigured ? isHostAuthenticated : isUnlocked
-  const navItems = [
-    { to: '/', label: 'Overview' },
-    showHostLink
-      ? { to: '/host/dashboard', label: 'Host' }
-      : { to: '/host/login', label: 'Host login' },
-    { to: '/join', label: 'Join' },
-  ]
+  const isLoggedIn = isSupabaseConfigured ? isHostAuthenticated : isUnlocked
 
   return (
-    <div
-      className={cn(
-        'min-h-screen text-white',
-        isHostRoute ? 'px-2 py-2 sm:px-2.5 lg:px-3' : 'px-4 py-6 sm:px-6 lg:px-10',
-      )}
-    >
-      <div
-        className={cn(
-          'mx-auto flex min-h-[calc(100vh-3rem)] flex-col rounded-[2rem] border border-white/10 bg-black/20 p-4 shadow-[0_30px_120px_rgba(0,0,0,0.35)] backdrop-blur sm:p-6',
-          isHostRoute ? 'max-w-[128rem] p-2 sm:p-2.5 lg:p-3' : 'max-w-7xl',
-        )}
-      >
-        <header
-          className={cn(
-            'panel flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between',
-            isHostRoute ? 'px-2.5 py-2' : 'px-5 py-4',
-          )}
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex size-12 items-center justify-center rounded-2xl bg-orange-300 text-stone-950">
-              <Trophy className="size-6" />
+    <div className="min-h-screen px-4 py-6 text-hi sm:px-6 lg:px-10">
+      <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl flex-col rounded-[2rem] border border-edge bg-input-bg p-4 shadow-[var(--shadow-panel)] backdrop-blur sm:p-6">
+
+        {/* ── Header ── */}
+        <header className="panel flex items-center justify-between px-5 py-4">
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-2xl bg-accent text-on-accent">
+              <Trophy className="size-5" />
             </div>
             <div>
-              <p className="font-mono text-xs uppercase tracking-[0.35em] text-orange-200/80">
-                FunGame
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-accent-text">FunGame</p>
+              <p className="font-[family-name:var(--font-heading)] text-sm font-semibold leading-none text-hi">
+                Live quiz app
               </p>
-              <h1 className="font-['Sora','Avenir_Next',sans-serif] text-xl font-semibold">
-                Live office quiz app
-              </h1>
             </div>
-          </div>
+          </Link>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <nav className="flex flex-wrap gap-2">
-              {navItems.map((item) => (
+          {/* Nav */}
+          <nav className="flex items-center gap-2">
+            <NavLink
+              to="/join"
+              className={({ isActive }) =>
+                cn(
+                  'rounded-full px-4 py-2 text-sm font-medium transition',
+                  isActive ? 'bg-raised text-on-accent' : 'bg-fill text-lo hover:bg-fill-hi',
+                )
+              }
+            >
+              Join game
+            </NavLink>
+
+            {isLoggedIn ? (
+              <>
                 <NavLink
-                  key={item.to}
-                  to={item.to}
+                  to="/host/dashboard"
                   className={({ isActive }) =>
                     cn(
-                      'rounded-full px-4 py-2 text-sm font-medium transition',
-                      isActive ? 'bg-white text-stone-950' : 'bg-white/6 text-white/75 hover:bg-white/12',
+                      'flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition',
+                      isActive ? 'bg-raised text-on-accent' : 'bg-fill text-lo hover:bg-fill-hi',
                     )
                   }
                 >
-                  {item.label}
+                  <LayoutDashboard className="size-4" />
+                  Dashboard
                 </NavLink>
-              ))}
-            </nav>
-
-            {isSupabaseConfigured ? (
-              isHostAuthenticated ? (
-                <div className="flex items-center gap-2">
-                  {hostEmail && (
-                    <span className="hidden text-sm text-white/50 sm:block">{hostEmail}</span>
-                  )}
-                  <button
-                    className="button-ghost rounded-full border border-white/10"
-                    type="button"
-                    onClick={() => signOut()}
-                  >
-                    <LogOut className="size-4" />
-                    Sign out
-                  </button>
-                </div>
-              ) : (
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/60">
-                  <ShieldCheck className="size-4 text-orange-200" />
-                  Participants stay out of host pages
-                </div>
-              )
-            ) : isUnlocked ? (
-              <button className="button-ghost rounded-full border border-white/10" type="button" onClick={logout}>
-                <LogOut className="size-4" />
-                Lock
-              </button>
+                <button
+                  className="flex items-center gap-1.5 rounded-full border border-edge px-4 py-2 text-sm text-dim transition hover:border-rim hover:text-md"
+                  onClick={() => isSupabaseConfigured ? signOut() : logout()}
+                >
+                  <LogOut className="size-4" />
+                  Sign out
+                </button>
+              </>
             ) : (
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white/60">
-                <ShieldCheck className="size-4 text-orange-200" />
-                Participants stay out of host pages
-              </div>
+              <Link
+                to="/host/login"
+                className="flex items-center gap-1.5 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-on-accent transition hover:bg-accent"
+              >
+                <LogIn className="size-4" />
+                Sign in
+              </Link>
             )}
-          </div>
+          </nav>
         </header>
 
         {!isSupabaseConfigured ? (
-          <div className="mt-4 rounded-3xl border border-amber-300/25 bg-amber-200/10 px-4 py-3 text-sm text-amber-50">
+          <div className="mt-4 rounded-3xl border border-warn-line bg-warn-tint px-4 py-3 text-sm text-warn-fg">
             <div className="flex items-start gap-3">
               <WandSparkles className="mt-0.5 size-4 shrink-0" />
               <p>
-                Running in local mock mode. Add your Supabase keys in `.env` when you are
-                ready to replace local storage with the free backend.
+                Running in local mock mode. Add your Supabase keys in <code>.env</code> to enable real auth and persistence.
               </p>
             </div>
           </div>
         ) : null}
 
-        <main className={cn('flex-1', isHostRoute ? 'mt-2' : 'mt-6')}>{children}</main>
+        <main className="mt-6 flex-1">{children}</main>
       </div>
     </div>
   )

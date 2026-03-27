@@ -1,9 +1,11 @@
-import type { QuestionOption } from '../types/game'
+import type { OptionDisplayMode, QuestionOption } from '../types/game'
 import { cn } from '../lib/utils'
+import { ImageIcon } from 'lucide-react'
 
 interface QuestionOptionCardProps {
   option: QuestionOption
   index: number
+  displayMode?: OptionDisplayMode
   interactive?: boolean
   selected?: boolean
   asLabel?: boolean
@@ -16,6 +18,7 @@ interface QuestionOptionCardProps {
 export function QuestionOptionCard({
   option,
   index,
+  displayMode = 'text',
   interactive = false,
   selected = false,
   asLabel = false,
@@ -24,9 +27,56 @@ export function QuestionOptionCard({
   revealState = 'neutral',
   onSelect,
 }: QuestionOptionCardProps) {
-  const hasImage = Boolean(option.imageUrl)
+  const hasImage = Boolean(option.imageUrl) && displayMode !== 'text'
+  const imageOnly = displayMode === 'image'
   const Wrapper = asLabel ? 'label' : 'div'
-  const useDynamicMediaHeight = hasImage && fillHeight && !compact
+  const letter = String.fromCharCode(65 + index)
+
+  const handleClick = interactive && onSelect ? () => onSelect(option.id) : undefined
+
+  if (imageOnly) {
+    // Image-only card: fills the grid cell, image covers, letter badge overlay
+    return (
+      <Wrapper
+        className={cn(
+          'slide-option relative overflow-hidden',
+          fillHeight ? 'h-full' : 'aspect-square',
+          interactive ? 'slide-option-interactive cursor-pointer' : '',
+          revealState === 'correct'   ? 'border-ok-line  bg-ok-tint  text-hi' : '',
+          revealState === 'incorrect' ? 'border-err-line bg-err-tint text-hi' : '',
+          revealState === 'selected'  ? 'border-note-line bg-note-tint text-hi' : '',
+          selected ? 'ring-2 ring-note-line border-note-line bg-note-tint text-hi shadow-[0_0_0_1px_var(--info-outline)]' : '',
+          !(revealState === 'correct' || revealState === 'incorrect' || revealState === 'selected' || selected) ? 'border-line' : '',
+        )}
+        onClick={handleClick}
+      >
+        {interactive ? (
+          <input checked={selected} className="sr-only" name="answer" type="radio" value={option.id} onChange={() => onSelect?.(option.id)} />
+        ) : null}
+        {option.imageUrl ? (
+          <img src={option.imageUrl} alt={option.label || `Option ${letter}`} className="h-full w-full object-contain" />
+        ) : (
+          <div className="flex h-full min-h-[60px] flex-col items-center justify-center gap-2 bg-fill p-3 text-dim">
+            <ImageIcon className="size-5 opacity-40" />
+            <span className="text-xs">No image</span>
+          </div>
+        )}
+        {/* Letter badge */}
+        <span className="absolute left-2 top-2 flex size-6 items-center justify-center rounded-full bg-black/50 text-[10px] font-bold text-white">
+          {letter}
+        </span>
+        {/* Correct tick */}
+        {revealState === 'correct' && (
+          <div className="absolute inset-0 flex items-center justify-center bg-ok-tint/40">
+            <div className="flex size-8 items-center justify-center rounded-full bg-ok-fg text-white">✓</div>
+          </div>
+        )}
+      </Wrapper>
+    )
+  }
+
+  // Text or Text+Image mode — never stretch image for text+image, always keep 1:1
+  const useDynamicMediaHeight = hasImage && fillHeight && !compact && displayMode === 'image'
 
   return (
     <Wrapper
@@ -39,53 +89,34 @@ export function QuestionOptionCard({
             : 'flex-col p-3.5 sm:p-4'
           : 'items-center px-4 py-4 text-base sm:text-lg',
         interactive ? 'slide-option-interactive' : '',
-        selected ? 'ring-2 ring-sky-300/70 border-sky-300/50 bg-sky-300/16 text-white shadow-[0_0_0_1px_rgba(125,211,252,0.2)]' : '',
-        revealState === 'correct' ? 'border-emerald-300/45 bg-emerald-300/14 text-white' : '',
-        revealState === 'incorrect' ? 'border-rose-300/40 bg-rose-300/12 text-white/95' : '',
-        revealState === 'selected' ? 'border-sky-300/35 bg-sky-300/10 text-white' : '',
+        selected ? 'ring-2 ring-note-line border-note-line bg-note-tint text-hi shadow-[0_0_0_1px_var(--info-outline)]' : '',
+        revealState === 'correct'   ? 'border-ok-line  bg-ok-tint  text-hi' : '',
+        revealState === 'incorrect' ? 'border-err-line bg-err-tint text-hi' : '',
+        revealState === 'selected'  ? 'border-note-line bg-note-tint text-hi' : '',
       )}
-      onClick={
-        interactive && onSelect
-          ? () => {
-              onSelect(option.id)
-            }
-          : undefined
-      }
+      onClick={handleClick}
     >
       {interactive ? (
-        <input
-          checked={selected}
-          className="sr-only"
-          name="answer"
-          type="radio"
-          value={option.id}
-          onChange={() => onSelect?.(option.id)}
-        />
+        <input checked={selected} className="sr-only" name="answer" type="radio" value={option.id} onChange={() => onSelect?.(option.id)} />
       ) : null}
 
       <div className={cn('flex items-center gap-3', hasImage && !compact ? 'order-2' : '')}>
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/15 bg-black/20 text-sm font-semibold text-orange-100">
-          {String.fromCharCode(65 + index)}
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-rim bg-input-bg text-sm font-semibold text-accent-text">
+          {letter}
         </span>
-        <span className={cn('leading-7', hasImage ? 'text-base' : '')}>
-          {option.label}
-        </span>
+        {displayMode !== 'image' && (
+          <span className={cn('leading-7', hasImage ? 'text-base' : '')}>{option.label}</span>
+        )}
       </div>
 
       {hasImage ? (
-        <div
-          className={cn(
-            'slide-option-media bg-white/95',
-            compact ? 'shrink-0' : '',
-            useDynamicMediaHeight ? 'min-h-0 flex-1' : '',
-          )}
-        >
+        <div className={cn('slide-option-media bg-raised', compact ? 'shrink-0' : '', useDynamicMediaHeight ? 'min-h-0 flex-1' : '')}>
           <img
             alt={option.label || `Option ${index + 1}`}
             className={cn(
-              'w-full object-contain p-2',
+              'w-full object-contain',
               compact ? 'h-20 sm:h-24' : '',
-              useDynamicMediaHeight ? 'h-full min-h-0' : 'h-32 sm:h-40 xl:h-44',
+              useDynamicMediaHeight ? 'h-full min-h-0 object-contain' : 'aspect-square object-contain',
             )}
             src={option.imageUrl}
           />

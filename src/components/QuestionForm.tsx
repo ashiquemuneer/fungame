@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { type LucideIcon, CircleDot, Crop, Hash, ToggleLeft, PenLine, Smile, Image, ImageIcon, Layout, LayoutTemplate, Star, Plus, Trash2, Type } from 'lucide-react'
 import { createQuestionDraft, generateId } from '../lib/mock-data'
-import type { Question, QuestionDraft, QuestionType } from '../types/game'
+import type { OptionDisplayMode, Question, QuestionDraft, QuestionType } from '../types/game'
 import { ImageAssetField } from './ImageAssetField'
+import { ImageCropModal } from './ImageCropModal'
 import { QuestionDraftPreview } from './QuestionDraftPreview'
 
 interface QuestionFormProps {
@@ -23,11 +24,16 @@ function draftFromQuestion(question?: Question): QuestionDraft {
     imageUrl: question.imageUrl ?? '',
     imageRevealConfig: question.imageRevealConfig ?? createQuestionDraft().imageRevealConfig,
     acceptedAnswer: question.acceptedAnswer ?? '',
+    hostNotes: question.hostNotes ?? '',
     slideLayout: question.slideLayout ?? 'auto',
+    optionDisplayMode: question.optionDisplayMode ?? 'text',
     timeLimitSeconds: question.timeLimitSeconds,
     points: question.points,
     isDemo: question.isDemo ?? false,
     isTieBreaker: question.isTieBreaker,
+    shortAnswerType: question.shortAnswerType ?? 'text',
+    numberMin: question.numberMin,
+    numberMax: question.numberMax,
     options:
       question.options.length > 0
         ? question.options
@@ -37,13 +43,22 @@ function draftFromQuestion(question?: Question): QuestionDraft {
 
 export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: QuestionFormProps) {
   const [draft, setDraft] = useState<QuestionDraft>(() => draftFromQuestion(initialQuestion))
+  const [activeOptId, setActiveOptId] = useState<string | null>(null)
+  const [cropFor, setCropFor] = useState<string | null>(null)
+  const optionRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   useEffect(() => {
     setDraft(draftFromQuestion(initialQuestion))
   }, [initialQuestion])
 
+  useEffect(() => {
+    if (!activeOptId) return
+    const el = optionRefs.current[activeOptId]
+    el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [activeOptId])
+
   const canAddOption = useMemo(
-    () => draft.type === 'mcq' && draft.options.length < 6,
+    () => draft.type === 'mcq' && draft.options.length < 10,
     [draft.options.length, draft.type],
   )
 
@@ -131,14 +146,14 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
       }}
     >
       <div className="min-w-0">
-        <QuestionDraftPreview draft={draft} />
+        <QuestionDraftPreview draft={draft} onOptionFocus={setActiveOptId} />
       </div>
 
       <aside className="min-w-0 space-y-2 lg:sticky lg:top-2 lg:h-fit lg:max-h-[calc(100vh-1.5rem)] lg:overflow-y-auto lg:pr-1">
-        <section className="rounded-[1.35rem] border border-white/10 bg-black/15 p-3">
-          <p className="text-sm uppercase tracking-[0.25em] text-white/45">Content</p>
+        <section className="rounded-[1.35rem] border border-edge bg-input-bg p-3">
+          <p className="text-sm uppercase tracking-[0.12em] text-faded">Content</p>
           <div className="mt-3 space-y-3">
-            <label className="space-y-2 text-sm text-white/80">
+            <label className="space-y-2 text-sm text-md">
               <span>Question prompt</span>
               <textarea
                 className="input min-h-32"
@@ -156,7 +171,7 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
             </label>
 
             {draft.type === 'emoji' ? (
-              <label className="space-y-2 text-sm text-white/80">
+              <label className="space-y-2 text-sm text-md">
                 <span>Emoji clue</span>
                 <textarea
                   className="input min-h-28 text-3xl leading-relaxed"
@@ -180,33 +195,33 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
           </div>
         </section>
 
-        <section className="rounded-[1.35rem] border border-white/10 bg-black/15 p-3">
-          <p className="text-sm uppercase tracking-[0.25em] text-white/45">Slide settings</p>
+        <section className="rounded-[1.35rem] border border-edge bg-input-bg p-3">
+          <p className="text-sm uppercase tracking-[0.12em] text-faded">Slide settings</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2 text-sm text-white/80 sm:col-span-2">
+            <div className="space-y-2 text-sm text-md sm:col-span-2">
               <span>Question type</span>
               {/* ── Grouped type picker ── */}
               <div className="space-y-3 pt-1">
                 {/* Quiz questions */}
                 <div>
-                  <p className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-white/35">Quiz</p>
+                  <p className="mb-1.5 text-[10px] uppercase tracking-[0.12em] text-faded">Quiz</p>
                   <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                     {([
-                      { value: 'mcq',        label: 'Multiple choice', emoji: '🔘' },
-                      { value: 'true_false', label: 'True / False',    emoji: '✅' },
-                      { value: 'short_text', label: 'Short text',      emoji: '✏️' },
-                    ] as { value: QuestionType; label: string; emoji: string }[]).map(({ value, label, emoji }) => (
+                      { value: 'mcq',        label: 'Multiple choice', icon: CircleDot  },
+                      { value: 'true_false', label: 'True / False',    icon: ToggleLeft },
+                      { value: 'short_text', label: 'Short text',      icon: PenLine    },
+                    ] as { value: QuestionType; label: string; icon: LucideIcon }[]).map(({ value, label, icon: Icon }) => (
                       <button
                         key={value}
                         type="button"
                         onClick={() => handleTypeChange(value)}
                         className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-left text-xs font-medium transition ${
                           draft.type === value
-                            ? 'border-orange-300/40 bg-orange-300/10 text-orange-200'
-                            : 'border-white/8 bg-white/4 text-white/60 hover:border-white/15 hover:bg-white/8 hover:text-white/80'
+                            ? 'border-accent-dim bg-accent-dim text-accent-text'
+                            : 'border-line bg-fill text-lo hover:border-edge hover:bg-fill-lo hover:text-md'
                         }`}
                       >
-                        <span className="text-base leading-none">{emoji}</span>
+                        <Icon className="size-3.5 shrink-0" />
                         {label}
                       </button>
                     ))}
@@ -214,24 +229,26 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                 </div>
                 {/* Media / special */}
                 <div>
-                  <p className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-white/35">Media &amp; Special</p>
+                  <p className="mb-1.5 text-[10px] uppercase tracking-[0.12em] text-faded">Media &amp; Special</p>
                   <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
                     {([
-                      { value: 'emoji',       label: 'Emoji guess',  emoji: '😄' },
-                      { value: 'image_guess', label: 'Image reveal', emoji: '🖼️' },
-                      { value: 'section',     label: 'Section slide', emoji: '📌' },
-                    ] as { value: QuestionType; label: string; emoji: string }[]).map(({ value, label, emoji }) => (
+                      { value: 'emoji',        label: 'Emoji guess',    icon: Smile  },
+                      { value: 'image_guess',  label: 'Image reveal',   icon: Image  },
+                      { value: 'rating',       label: 'Rating 1–5',     icon: Star   },
+                      { value: 'number_guess', label: 'Number guess',   icon: Hash   },
+                      { value: 'section',      label: 'Section slide',  icon: Layout },
+                    ] as { value: QuestionType; label: string; icon: LucideIcon }[]).map(({ value, label, icon: Icon }) => (
                       <button
                         key={value}
                         type="button"
                         onClick={() => handleTypeChange(value)}
                         className={`flex items-center gap-2 rounded-2xl border px-3 py-2.5 text-left text-xs font-medium transition ${
                           draft.type === value
-                            ? 'border-orange-300/40 bg-orange-300/10 text-orange-200'
-                            : 'border-white/8 bg-white/4 text-white/60 hover:border-white/15 hover:bg-white/8 hover:text-white/80'
+                            ? 'border-accent-dim bg-accent-dim text-accent-text'
+                            : 'border-line bg-fill text-lo hover:border-edge hover:bg-fill-lo hover:text-md'
                         }`}
                       >
-                        <span className="text-base leading-none">{emoji}</span>
+                        <Icon className="size-3.5 shrink-0" />
                         {label}
                       </button>
                     ))}
@@ -241,7 +258,7 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
             </div>
 
             {draft.type !== 'section' && draft.type !== 'emoji' && draft.type !== 'image_guess' ? (
-              <label className="space-y-2 text-sm text-white/80 sm:col-span-2">
+              <label className="space-y-2 text-sm text-md sm:col-span-2">
                 <span>Slide view</span>
                 <select
                   className="input"
@@ -261,7 +278,7 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
             ) : null}
 
             {draft.type !== 'section' && !draft.isDemo ? (
-              <label className="space-y-2 text-sm text-white/80">
+              <label className="space-y-2 text-sm text-md">
                 <span>Timer (sec)</span>
                 <input
                   className="input"
@@ -278,17 +295,17 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                 />
               </label>
             ) : (
-              <div className="rounded-3xl border border-dashed border-white/15 bg-white/4 px-4 py-3 text-sm text-white/55">
+              <div className="rounded-3xl border border-dashed border-rim bg-fill px-4 py-3 text-sm text-dim">
                 Section slides do not use timers.
               </div>
             )}
 
             {draft.type !== 'section' ? (
               <>
-                <label className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/4 px-4 py-3 text-sm text-white/80 sm:col-span-2">
+                <label className="flex items-center gap-3 rounded-3xl border border-edge bg-fill px-4 py-3 text-sm text-md sm:col-span-2">
                   <input
                     checked={draft.isDemo}
-                    className="size-4 accent-orange-300"
+                    className="size-4 accent-[var(--accent)]"
                     type="checkbox"
                     onChange={(event) =>
                       setDraft((current) => ({
@@ -313,7 +330,7 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                   Demo option
                 </label>
                 {!draft.isDemo ? (
-                  <label className="space-y-2 text-sm text-white/80">
+                  <label className="space-y-2 text-sm text-md">
                     <span>Points</span>
                     <input
                       className="input"
@@ -327,10 +344,10 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                     />
                   </label>
                 ) : null}
-                <label className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/4 px-4 py-3 text-sm text-white/80 sm:col-span-2">
+                <label className="flex items-center gap-3 rounded-3xl border border-edge bg-fill px-4 py-3 text-sm text-md sm:col-span-2">
                   <input
                     checked={draft.isTieBreaker}
-                    className="size-4 accent-orange-300"
+                    className="size-4 accent-[var(--accent)]"
                     disabled={draft.isDemo}
                     type="checkbox"
                     onChange={(event) =>
@@ -341,7 +358,7 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                 </label>
               </>
             ) : (
-              <label className="space-y-2 text-sm text-white/80 sm:col-span-2">
+              <label className="space-y-2 text-sm text-md sm:col-span-2">
                 <span>Section subtitle</span>
                 <textarea
                   className="input min-h-28"
@@ -357,25 +374,65 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
         </section>
 
         {draft.type === 'short_text' ? (
-          <section className="rounded-[1.35rem] border border-white/10 bg-black/15 p-3">
-            <p className="text-sm uppercase tracking-[0.25em] text-white/45">Scoring</p>
-            <label className="mt-4 block space-y-2 text-sm text-white/80">
-              <span>Scoring guidance for host (optional)</span>
-              <input
-                className="input"
-                placeholder="Example: score thoughtful answers with 5 to 15 points"
-                value={draft.acceptedAnswer}
-                onChange={(event) =>
-                  setDraft((current) => ({ ...current, acceptedAnswer: event.target.value }))
-                }
-              />
-            </label>
+          <section className="rounded-[1.35rem] border border-edge bg-input-bg p-3">
+            <p className="text-sm uppercase tracking-[0.12em] text-faded">Answer Format</p>
+            <div className="mt-4 space-y-4">
+              <label className="block space-y-2 text-sm text-md">
+                <span>Input type</span>
+                <select
+                  className="input w-full"
+                  value={draft.shortAnswerType ?? 'text'}
+                  onChange={(e) => setDraft((c) => ({ ...c, shortAnswerType: e.target.value as 'text' | 'number' }))}
+                >
+                  <option value="text">Text</option>
+                  <option value="number">Number</option>
+                </select>
+              </label>
+
+              {draft.shortAnswerType === 'number' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block space-y-2 text-sm text-md">
+                    <span>Minimum (optional)</span>
+                    <input
+                      className="input w-full"
+                      type="number"
+                      placeholder="e.g. 0"
+                      value={draft.numberMin ?? ''}
+                      onChange={(e) => setDraft((c) => ({ ...c, numberMin: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                    />
+                  </label>
+                  <label className="block space-y-2 text-sm text-md">
+                    <span>Maximum (optional)</span>
+                    <input
+                      className="input w-full"
+                      type="number"
+                      placeholder="e.g. 100"
+                      value={draft.numberMax ?? ''}
+                      onChange={(e) => setDraft((c) => ({ ...c, numberMax: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                    />
+                  </label>
+                </div>
+              )}
+
+              <p className="mt-2 pt-3 text-sm uppercase tracking-[0.12em] text-faded border-t border-edge">Scoring</p>
+              <label className="block space-y-2 text-sm text-md">
+                <span>Scoring guidance for host (optional)</span>
+                <input
+                  className="input"
+                  placeholder="Example: score thoughtful answers with 5 to 15 points"
+                  value={draft.acceptedAnswer}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, acceptedAnswer: event.target.value }))
+                  }
+                />
+              </label>
+            </div>
           </section>
         ) : draft.type === 'emoji' ? (
-          <section className="rounded-[1.35rem] border border-white/10 bg-black/15 p-3">
-            <p className="text-sm uppercase tracking-[0.25em] text-white/45">Emoji answer</p>
+          <section className="rounded-[1.35rem] border border-edge bg-input-bg p-3">
+            <p className="text-sm uppercase tracking-[0.12em] text-faded">Emoji answer</p>
             <div className="mt-3 space-y-3">
-              <label className="block space-y-2 text-sm text-white/80">
+              <label className="block space-y-2 text-sm text-md">
                 <span>Correct answer</span>
                 <input
                   className="input"
@@ -386,21 +443,21 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                   }
                 />
               </label>
-              <div className="rounded-2xl border border-dashed border-white/15 bg-white/4 px-4 py-4 text-sm leading-7 text-white/60">
+              <div className="rounded-2xl border border-dashed border-rim bg-fill px-4 py-4 text-sm leading-7 text-lo">
                 Players type the movie, brand, place, or phrase they think the emoji clues represent.
                 Exact matches score automatically.
               </div>
-              <div className="rounded-2xl border border-dashed border-orange-200/20 bg-orange-300/6 px-4 py-4 text-sm leading-7 text-orange-50/80">
+              <div className="rounded-2xl border border-dashed border-accent-dim bg-accent-dim px-4 py-4 text-sm leading-7 text-accent-text">
                 Example: <span className="font-medium">🚢🧊🚫🧍‍♀️❄️</span> {'->'} <span className="font-medium">Titanic</span>
               </div>
             </div>
           </section>
         ) : draft.type === 'image_guess' ? (
           <>
-            <section className="rounded-[1.35rem] border border-white/10 bg-black/15 p-3">
-              <p className="text-sm uppercase tracking-[0.25em] text-white/45">Image answer</p>
+            <section className="rounded-[1.35rem] border border-edge bg-input-bg p-3">
+              <p className="text-sm uppercase tracking-[0.12em] text-faded">Image answer</p>
               <div className="mt-3 space-y-3">
-                <label className="block space-y-2 text-sm text-white/80">
+                <label className="block space-y-2 text-sm text-md">
                   <span>Correct answer</span>
                   <input
                     className="input"
@@ -411,23 +468,23 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                     }
                   />
                 </label>
-                <div className="rounded-2xl border border-dashed border-white/15 bg-white/4 px-4 py-4 text-sm leading-7 text-white/60">
+                <div className="rounded-2xl border border-dashed border-rim bg-fill px-4 py-4 text-sm leading-7 text-lo">
                   Upload the full image, then crop and rotate it to reveal just a confusing piece.
-                  During the live game the host can tap <span className="font-medium text-white">Show more</span> if nobody gets it.
+                  During the live game the host can tap <span className="font-medium text-hi">Show more</span> if nobody gets it.
                 </div>
               </div>
             </section>
 
-            <section className="rounded-[1.35rem] border border-white/10 bg-black/15 p-3">
-              <p className="text-sm uppercase tracking-[0.25em] text-white/45">Crop and reveal</p>
+            <section className="rounded-[1.35rem] border border-edge bg-input-bg p-3">
+              <p className="text-sm uppercase tracking-[0.12em] text-faded">Crop and reveal</p>
               <div className="mt-3 space-y-3">
-                <label className="space-y-2 text-sm text-white/80">
+                <label className="space-y-2 text-sm text-md">
                   <div className="flex items-center justify-between gap-3">
                     <span>Zoom</span>
-                    <span className="text-white/55">{draft.imageRevealConfig.zoom.toFixed(1)}x</span>
+                    <span className="text-dim">{draft.imageRevealConfig.zoom.toFixed(1)}x</span>
                   </div>
                   <input
-                    className="w-full accent-orange-300"
+                    className="w-full accent-[var(--accent)]"
                     max={5}
                     min={1}
                     step={0.1}
@@ -445,13 +502,13 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                   />
                 </label>
 
-                <label className="space-y-2 text-sm text-white/80">
+                <label className="space-y-2 text-sm text-md">
                   <div className="flex items-center justify-between gap-3">
                     <span>Rotate</span>
-                    <span className="text-white/55">{draft.imageRevealConfig.rotation}deg</span>
+                    <span className="text-dim">{draft.imageRevealConfig.rotation}deg</span>
                   </div>
                   <input
-                    className="w-full accent-orange-300"
+                    className="w-full accent-[var(--accent)]"
                     max={180}
                     min={-180}
                     step={1}
@@ -469,13 +526,13 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                   />
                 </label>
 
-                <label className="space-y-2 text-sm text-white/80">
+                <label className="space-y-2 text-sm text-md">
                   <div className="flex items-center justify-between gap-3">
                     <span>Horizontal crop</span>
-                    <span className="text-white/55">{draft.imageRevealConfig.focusX}%</span>
+                    <span className="text-dim">{draft.imageRevealConfig.focusX}%</span>
                   </div>
                   <input
-                    className="w-full accent-orange-300"
+                    className="w-full accent-[var(--accent)]"
                     max={100}
                     min={0}
                     step={1}
@@ -493,13 +550,13 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                   />
                 </label>
 
-                <label className="space-y-2 text-sm text-white/80">
+                <label className="space-y-2 text-sm text-md">
                   <div className="flex items-center justify-between gap-3">
                     <span>Vertical crop</span>
-                    <span className="text-white/55">{draft.imageRevealConfig.focusY}%</span>
+                    <span className="text-dim">{draft.imageRevealConfig.focusY}%</span>
                   </div>
                   <input
-                    className="w-full accent-orange-300"
+                    className="w-full accent-[var(--accent)]"
                     max={100}
                     min={0}
                     step={1}
@@ -517,13 +574,13 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
                   />
                 </label>
 
-                <label className="space-y-2 text-sm text-white/80">
+                <label className="space-y-2 text-sm text-md">
                   <div className="flex items-center justify-between gap-3">
                     <span>Show more step</span>
-                    <span className="text-white/55">{draft.imageRevealConfig.revealStep.toFixed(2)}x</span>
+                    <span className="text-dim">{draft.imageRevealConfig.revealStep.toFixed(2)}x</span>
                   </div>
                   <input
-                    className="w-full accent-orange-300"
+                    className="w-full accent-[var(--accent)]"
                     max={1.25}
                     min={0.15}
                     step={0.05}
@@ -543,21 +600,61 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
               </div>
             </section>
           </>
+        ) : draft.type === 'rating' ? (
+          <section className="rounded-[1.35rem] border border-edge bg-input-bg p-3">
+            <p className="text-sm uppercase tracking-[0.12em] text-faded">Rating question</p>
+            <div className="mt-3 space-y-3">
+              <label className="block space-y-2 text-sm text-md">
+                <span>Target rating (optional — auto-scores exact match)</span>
+                <input
+                  className="input"
+                  placeholder="e.g. 4"
+                  type="number"
+                  min={1}
+                  max={5}
+                  value={draft.acceptedAnswer}
+                  onChange={(e) => setDraft((c) => ({ ...c, acceptedAnswer: e.target.value }))}
+                />
+              </label>
+              <div className="rounded-2xl border border-dashed border-rim bg-fill px-4 py-4 text-sm leading-7 text-lo">
+                Players pick a rating from 1 to 5 stars. Leave the target blank to use this as a poll — the host awards points manually.
+              </div>
+            </div>
+          </section>
+        ) : draft.type === 'number_guess' ? (
+          <section className="rounded-[1.35rem] border border-edge bg-input-bg p-3">
+            <p className="text-sm uppercase tracking-[0.12em] text-faded">Number guess</p>
+            <div className="mt-3 space-y-3">
+              <label className="block space-y-2 text-sm text-md">
+                <span>Correct answer (number)</span>
+                <input
+                  className="input"
+                  placeholder="e.g. 1969"
+                  type="number"
+                  value={draft.acceptedAnswer}
+                  onChange={(e) => setDraft((c) => ({ ...c, acceptedAnswer: e.target.value }))}
+                />
+              </label>
+              <div className="rounded-2xl border border-dashed border-rim bg-fill px-4 py-4 text-sm leading-7 text-lo">
+                Players type any number. Exact matches score automatically. The host can use <span className="font-medium text-md">Score closest</span> in the session to award points to the nearest answer.
+              </div>
+            </div>
+          </section>
         ) : draft.type === 'section' ? (
-          <section className="rounded-[1.35rem] border border-white/10 bg-black/15 p-3">
-            <p className="text-sm uppercase tracking-[0.25em] text-white/45">Section slide</p>
-            <div className="mt-4 rounded-2xl border border-dashed border-white/15 bg-white/4 px-4 py-4 text-sm leading-7 text-white/60">
+          <section className="rounded-[1.35rem] border border-edge bg-input-bg p-3">
+            <p className="text-sm uppercase tracking-[0.12em] text-faded">Section slide</p>
+            <div className="mt-4 rounded-2xl border border-dashed border-rim bg-fill px-4 py-4 text-sm leading-7 text-lo">
               Use section slides to separate rounds, introduce the next game, or show a short
               title card between questions.
             </div>
           </section>
         ) : (
-          <section className="space-y-2 rounded-[1.35rem] border border-white/10 bg-black/15 p-3">
+          <section className="space-y-2 rounded-[1.35rem] border border-edge bg-input-bg p-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-sm uppercase tracking-[0.25em] text-white/45">Answer options</p>
-                <h3 className="mt-2 text-xl font-semibold text-white">Inspector</h3>
-                <p className="mt-2 text-sm text-white/60">
+                <p className="text-sm uppercase tracking-[0.12em] text-faded">Answer options</p>
+                <h3 className="mt-2 text-xl font-semibold text-hi">Inspector</h3>
+                <p className="mt-2 text-sm text-lo">
                   Mark the correct option so objective rounds score automatically.
                 </p>
               </div>
@@ -582,55 +679,111 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
               ) : null}
             </div>
 
+            {/* Option display mode */}
+            <div className="space-y-2">
+              <p className="text-[11px] uppercase tracking-[0.12em] text-faded">Option display</p>
+              <div className="grid grid-cols-3 gap-1">
+                {([
+                  { value: 'text'       as OptionDisplayMode, label: 'Text',         icon: Type           },
+                  { value: 'image'      as OptionDisplayMode, label: 'Image',        icon: ImageIcon      },
+                  { value: 'text+image' as OptionDisplayMode, label: 'Text + Image', icon: LayoutTemplate },
+                ]).map(({ value, label, icon: Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setDraft(c => ({ ...c, optionDisplayMode: value }))}
+                    className={`flex items-center gap-1.5 rounded-xl border px-2 py-2 text-left text-xs font-medium transition ${
+                      draft.optionDisplayMode === value
+                        ? 'border-accent-dim bg-accent-dim text-accent-text'
+                        : 'border-line bg-fill text-lo hover:border-edge hover:text-md'
+                    }`}
+                  >
+                    <Icon className="size-3 shrink-0" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="space-y-3">
               {draft.options.map((option) => (
                 <div
                   key={option.id}
-                  className="space-y-3 rounded-2xl border border-white/8 bg-white/4 p-3"
+                  ref={(el) => { optionRefs.current[option.id] = el }}
+                  className={`space-y-3 rounded-2xl border p-3 transition ${
+                    activeOptId === option.id
+                      ? 'border-accent-dim bg-accent-dim/30'
+                      : 'border-line bg-fill'
+                  }`}
+                  onClick={() => setActiveOptId(option.id)}
                 >
-                  <input
-                    className="input"
-                    disabled={draft.type === 'true_false'}
-                    placeholder="Option label"
-                    value={option.label}
-                    onChange={(event) =>
-                      setDraft((current) => ({
-                        ...current,
-                        options: current.options.map((item) =>
-                          item.id === option.id ? { ...item, label: event.target.value } : item,
-                        ),
-                      }))
-                    }
-                  />
+                  {draft.optionDisplayMode !== 'image' ? (
+                    <input
+                      className="input"
+                      disabled={draft.type === 'true_false'}
+                      placeholder="Option label"
+                      value={option.label}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          options: current.options.map((item) =>
+                            item.id === option.id ? { ...item, label: event.target.value } : item,
+                          ),
+                        }))
+                      }
+                    />
+                  ) : null}
 
-                  <ImageAssetField
-                    label="Option image"
-                    value={option.imageUrl ?? ''}
-                    onChange={(value) =>
-                      setDraft((current) => ({
-                        ...current,
-                        options: current.options.map((item) =>
-                          item.id === option.id ? { ...item, imageUrl: value } : item,
-                        ),
-                      }))
-                    }
-                  />
-
-                  <div className="flex flex-wrap items-center gap-3">
-                    <label className="flex items-center gap-2 rounded-full border border-white/10 px-4 py-2 text-sm text-white/75">
-                      <input
-                        checked={option.isCorrect}
-                        className="accent-orange-300"
-                        name="correct-option"
-                        type="radio"
-                        onChange={() =>
+                  {draft.optionDisplayMode !== 'text' ? (
+                    <div className="space-y-2">
+                      <ImageAssetField
+                        label="Option image"
+                        value={option.imageUrl ?? ''}
+                        onChange={(value) =>
                           setDraft((current) => ({
                             ...current,
-                            options: current.options.map((item) => ({
-                              ...item,
-                              isCorrect: item.id === option.id,
-                            })),
+                            options: current.options.map((item) =>
+                              item.id === option.id ? { ...item, imageUrl: value } : item,
+                            ),
                           }))
+                        }
+                      />
+                      {option.imageUrl ? (
+                        <button
+                          type="button"
+                          className="button-ghost rounded-full border border-edge text-xs"
+                          onClick={(e) => { e.stopPropagation(); setCropFor(option.id) }}
+                        >
+                          <Crop className="size-3.5" />
+                          Crop 1:1
+                        </button>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2 rounded-full border border-edge px-4 py-2 text-sm text-md">
+                      <input
+                        checked={option.isCorrect}
+                        className="accent-[var(--accent)]"
+                        name={draft.type === 'mcq' ? `correct-option-${option.id}` : 'correct-option'}
+                        type={draft.type === 'mcq' ? 'checkbox' : 'radio'}
+                        onChange={() =>
+                          setDraft((current) => {
+                            const isOnlyCorrect = option.isCorrect && current.options.filter((o) => o.isCorrect).length === 1
+                            if (draft.type === 'mcq' && isOnlyCorrect) return current // Prevent unchecking the last correct answer
+
+                            return {
+                              ...current,
+                              options: current.options.map((item) =>
+                                draft.type === 'mcq'
+                                  ? item.id === option.id
+                                    ? { ...item, isCorrect: !item.isCorrect }
+                                    : item
+                                  : { ...item, isCorrect: item.id === option.id },
+                              ),
+                            }
+                          })
                         }
                       />
                       Correct
@@ -638,14 +791,15 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
 
                     {draft.type === 'mcq' && draft.options.length > 2 ? (
                       <button
-                        className="button-ghost justify-center rounded-full border border-white/10"
+                        className="button-ghost justify-center rounded-full border border-edge"
                         type="button"
-                        onClick={() =>
+                        onClick={(e) => {
+                          e.stopPropagation()
                           setDraft((current) => ({
                             ...current,
                             options: current.options.filter((item) => item.id !== option.id),
                           }))
-                        }
+                        }}
                       >
                         <Trash2 className="size-4" />
                       </button>
@@ -655,9 +809,43 @@ export function QuestionForm({ initialQuestion, onSubmit, onCancelEdit }: Questi
               ))}
             </div>
           </section>
+
+          {cropFor && (() => {
+            const opt = draft.options.find(o => o.id === cropFor)
+            if (!opt?.imageUrl) return null
+            return (
+              <ImageCropModal
+                open
+                src={opt.imageUrl}
+                onClose={() => setCropFor(null)}
+                onApply={(dataUrl) => {
+                  setDraft(c => ({
+                    ...c,
+                    options: c.options.map(o => o.id === cropFor ? { ...o, imageUrl: dataUrl } : o),
+                  }))
+                  setCropFor(null)
+                }}
+              />
+            )
+          })()}
         )}
 
-        <div className="flex flex-wrap justify-end gap-3 border-t border-white/10 pt-2">
+        {draft.type !== 'section' && (
+          <section className="rounded-[1.35rem] border border-edge bg-input-bg p-3">
+            <p className="text-sm uppercase tracking-[0.12em] text-faded">Host notes</p>
+            <label className="mt-3 block space-y-2 text-sm text-md">
+              <span>Internal notes (only visible to the host during the session)</span>
+              <textarea
+                className="input min-h-20"
+                placeholder="Talking points, backstory, hints for scoring…"
+                value={draft.hostNotes}
+                onChange={(e) => setDraft((c) => ({ ...c, hostNotes: e.target.value }))}
+              />
+            </label>
+          </section>
+        )}
+
+        <div className="flex flex-wrap justify-end gap-3 border-t border-edge pt-2">
           {initialQuestion && onCancelEdit ? (
             <button className="button-secondary" type="button" onClick={onCancelEdit}>
               Cancel edit

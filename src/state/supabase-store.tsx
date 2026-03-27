@@ -26,6 +26,9 @@ import type {
 // DB → App mapping
 // ---------------------------------------------------------------------------
 
+const LEGACY_STORAGE_KEY = 'fungame-state-v1'
+const LEGACY_MIGRATION_KEY = 'fungame-state-v1-imported-to-supabase'
+
 function mapQuestion(row: any): Question {
   return {
     id: row.id,
@@ -36,10 +39,12 @@ function mapQuestion(row: any): Question {
     imageRevealConfig: row.image_reveal_config ?? undefined,
     acceptedAnswer: row.accepted_answer ?? undefined,
     slideLayout: row.slide_layout ?? 'auto',
+    sectionLayout: row.section_layout ?? undefined,
     timeLimitSeconds: row.time_limit_seconds,
     points: row.points,
     isDemo: row.is_demo ?? false,
     isTieBreaker: row.is_tie_breaker ?? false,
+    optionDisplayMode: row.option_display_mode ?? undefined,
     options: (row.question_options ?? [])
       .sort((a: any, b: any) => a.position - b.position)
       .map((o: any) => ({
@@ -129,6 +134,86 @@ function mapAnswer(row: any): Answer {
   }
 }
 
+function readLegacyState(): AppState | null {
+  if (typeof window === 'undefined') return null
+  const raw = window.localStorage.getItem(LEGACY_STORAGE_KEY)
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as AppState
+  } catch {
+    return null
+  }
+}
+
+async function importLegacyState(userId: string): Promise<boolean> {
+  if (!supabase || typeof window === 'undefined') return false
+  if (window.localStorage.getItem(LEGACY_MIGRATION_KEY) === '1') return false
+
+  const legacy = readLegacyState()
+  if (!legacy || legacy.games.length === 0) return false
+
+  for (const game of legacy.games) {
+    const { error: gameError } = await supabase.from('games').upsert({
+      id: game.id,
+      host_user_id: userId,
+      title: game.title,
+      description: game.description ?? '',
+      status: game.status,
+      tags: game.tags ?? [],
+      is_public: game.isPublic ?? false,
+      cover_image: game.coverImage ?? null,
+      created_at: game.createdAt,
+      updated_at: game.updatedAt,
+    })
+    if (gameError) throw gameError
+
+    for (const [position, question] of game.questions.entries()) {
+      const payload = {
+        id: question.id,
+        game_id: game.id,
+        position,
+        type: question.type,
+        prompt: question.prompt,
+        emoji_prompt: question.emojiPrompt ?? null,
+        image_url: question.imageUrl ?? null,
+        image_reveal_config: question.imageRevealConfig ?? null,
+        accepted_answer: question.acceptedAnswer ?? null,
+        slide_layout: question.slideLayout ?? 'auto',
+        section_layout: question.sectionLayout ?? null,
+        time_limit_seconds: question.timeLimitSeconds,
+        points: question.points,
+        is_demo: question.isDemo,
+        is_tie_breaker: question.isTieBreaker,
+      }
+
+      let { error: questionError } = await supabase.from('questions').insert(payload)
+      if (questionError && String(questionError.message ?? '').includes('section_layout')) {
+        const { section_layout: _sectionLayout, ...legacyPayload } = payload
+        const retry = await supabase.from('questions').insert(legacyPayload)
+        questionError = retry.error ?? null
+      }
+      if (questionError) throw questionError
+
+      if (question.options.length > 0) {
+        const { error: optionsError } = await supabase.from('question_options').insert(
+          question.options.map((option, idx) => ({
+            id: option.id,
+            question_id: question.id,
+            position: idx,
+            label: option.label,
+            image_url: option.imageUrl ?? null,
+            is_correct: option.isCorrect,
+          })),
+        )
+        if (optionsError) throw optionsError
+      }
+    }
+  }
+
+  window.localStorage.setItem(LEGACY_MIGRATION_KEY, '1')
+  return true
+}
+
 // ---------------------------------------------------------------------------
 // Scoring (mirrors game-store logic)
 // ---------------------------------------------------------------------------
@@ -174,109 +259,6 @@ function scoreAnswer(
 }
 
 // ---------------------------------------------------------------------------
-// Demo game seeder (runs once when a new host has no games)
-// ---------------------------------------------------------------------------
-
-async function seedDemoGame(userId: string): Promise<void> {
-  if (!supabase) return
-
-  // Create the game
-  const { data: game, error: gameErr } = await supabase
-    .from('games')
-    .insert({
-      host_user_id: userId,
-      title: '🚀 Demo: All Question Types',
-      description:
-        'Try every slide type — section, multiple choice, true/false, short text, emoji, and image reveal.',
-      status: 'published',
-    })
-    .select('id')
-    .single()
-
-  if (gameErr || !game) return
-
-  const gameId = game.id
-
-  // Insert all 6 questions
-  const { data: questions, error: qErr } = await supabase
-    .from('questions')
-    .insert([
-      {
-        game_id: gameId, position: 0, type: 'section',
-        prompt: '🎉 Welcome to the Demo Quiz!',
-        accepted_answer: 'This is a section slide — use it to introduce a round or show a title.',
-        slide_layout: 'auto', time_limit_seconds: 0, points: 0,
-        is_demo: false, is_tie_breaker: false,
-      },
-      {
-        game_id: gameId, position: 1, type: 'mcq',
-        prompt: 'Which planet is known as the Red Planet?',
-        slide_layout: 'auto', time_limit_seconds: 20, points: 10,
-        is_demo: false, is_tie_breaker: false,
-      },
-      {
-        game_id: gameId, position: 2, type: 'true_false',
-        prompt: 'True or False: Honey never expires — scientists found edible honey in 3,000-year-old Egyptian tombs.',
-        slide_layout: 'auto', time_limit_seconds: 15, points: 5,
-        is_demo: false, is_tie_breaker: false,
-      },
-      {
-        game_id: gameId, position: 3, type: 'short_text',
-        prompt: 'Name any programming language invented before 1980.',
-        accepted_answer: 'COBOL, FORTRAN, C, Pascal, BASIC, Lisp, Smalltalk, Ada — any valid answer scores points.',
-        slide_layout: 'auto', time_limit_seconds: 30, points: 15,
-        is_demo: false, is_tie_breaker: false,
-      },
-      {
-        game_id: gameId, position: 4, type: 'emoji',
-        prompt: 'What famous movie do these emojis represent?',
-        emoji_prompt: '🦁👑🌍',
-        accepted_answer: 'The Lion King',
-        slide_layout: 'auto', time_limit_seconds: 20, points: 10,
-        is_demo: false, is_tie_breaker: false,
-      },
-      {
-        game_id: gameId, position: 5, type: 'image_guess',
-        prompt: 'What famous landmark is this? Type your answer.',
-        image_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/85/Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg/700px-Tour_Eiffel_Wikimedia_Commons_%28cropped%29.jpg',
-        image_reveal_config: { focusX: 50, focusY: 40, zoom: 3.5, rotation: 0, revealStep: 0.55 },
-        accepted_answer: 'Eiffel Tower',
-        slide_layout: 'auto', time_limit_seconds: 30, points: 20,
-        is_demo: false, is_tie_breaker: false,
-      },
-    ])
-    .select('id, position')
-
-  if (qErr || !questions) return
-
-  const byPos = new Map(questions.map((q) => [q.position, q.id]))
-
-  // Insert options for MCQ (pos 1) and True/False (pos 2)
-  const options: object[] = []
-  const mcqId = byPos.get(1)
-  const tfId = byPos.get(2)
-
-  if (mcqId) {
-    options.push(
-      { question_id: mcqId, position: 0, label: 'Mercury', is_correct: false },
-      { question_id: mcqId, position: 1, label: 'Mars', is_correct: true },
-      { question_id: mcqId, position: 2, label: 'Jupiter', is_correct: false },
-      { question_id: mcqId, position: 3, label: 'Venus', is_correct: false },
-    )
-  }
-  if (tfId) {
-    options.push(
-      { question_id: tfId, position: 0, label: 'True', is_correct: true },
-      { question_id: tfId, position: 1, label: 'False', is_correct: false },
-    )
-  }
-
-  if (options.length > 0) {
-    await supabase.from('question_options').insert(options)
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Data loader
 // ---------------------------------------------------------------------------
 
@@ -286,19 +268,48 @@ const GAME_SELECT = `
     id, game_id, position, type, prompt, emoji_prompt, image_url,
     image_reveal_config, accepted_answer, slide_layout, time_limit_seconds,
     points, is_demo, is_tie_breaker, created_at,
+    section_layout,
     question_options (id, question_id, position, label, image_url, is_correct)
   )
 `.trim()
+
+const GAME_SELECT_LEGACY = `
+  id, host_user_id, title, description, status, created_at, updated_at,
+  questions (
+    id, game_id, position, type, prompt, emoji_prompt, image_url,
+    image_reveal_config, accepted_answer, slide_layout, time_limit_seconds,
+    points, is_demo, is_tie_breaker, created_at,
+    question_options (id, question_id, position, label, image_url, is_correct)
+  )
+`.trim()
+
+async function selectGames(userId: string, query: string) {
+  const result = await supabase!
+    .from('games')
+    .select(query)
+    .eq('host_user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (!result.error) {
+    return result
+  }
+
+  if (query === GAME_SELECT && String(result.error.message ?? '').includes('section_layout')) {
+    return supabase!
+      .from('games')
+      .select(GAME_SELECT_LEGACY)
+      .eq('host_user_id', userId)
+      .order('created_at', { ascending: false })
+  }
+
+  return result
+}
 
 async function loadAll(userId: string): Promise<AppState> {
   if (!supabase) return { games: [], sessions: [], players: [], answers: [], sessionResults: [] }
 
   // 1. Games I host
-  const { data: hostGamesData, error: gamesErr } = await supabase
-    .from('games')
-    .select(GAME_SELECT)
-    .eq('host_user_id', userId)
-    .order('created_at', { ascending: false })
+  const { data: hostGamesData, error: gamesErr } = await selectGames(userId, GAME_SELECT)
 
   if (gamesErr) console.error('[loadAll] games query failed:', gamesErr)
   console.log('[loadAll] userId:', userId, 'hostGamesData count:', hostGamesData?.length ?? 'null/error')
@@ -351,7 +362,7 @@ async function loadAll(userId: string): Promise<AppState> {
   if (newCollabIds.length > 0) {
     const { data } = await supabase
       .from('games')
-      .select(GAME_SELECT)
+      .select(gamesErr ? GAME_SELECT_LEGACY : GAME_SELECT)
       .in('id', newCollabIds)
     collabGamesData = data ?? []
   }
@@ -366,7 +377,7 @@ async function loadAll(userId: string): Promise<AppState> {
   if (missingGameIds.length > 0) {
     const { data } = await supabase
       .from('games')
-      .select(GAME_SELECT)
+      .select(gamesErr ? GAME_SELECT_LEGACY : GAME_SELECT)
       .in('id', missingGameIds)
     playerGamesData = data ?? []
   }
@@ -449,9 +460,12 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
     if (!userId) return
     loadAll(userId)
       .then(async (loaded) => {
-        // Only seed for email-authenticated hosts, never for anonymous players
-        if (loaded.games.length === 0 && isHostAuthenticated) {
-          await seedDemoGame(userId)
+        if (loaded.games.length > 0) {
+          return loaded
+        }
+
+        // Bring over any legacy local-only data first.
+        if (isHostAuthenticated && await importLegacyState(userId)) {
           return loadAll(userId)
         }
         return loaded
@@ -589,6 +603,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
             id: q.id, game_id: current.id, type: q.type, prompt: q.prompt,
             emoji_prompt: q.emojiPrompt ?? null, image_url: q.imageUrl ?? null,
             accepted_answer: q.acceptedAnswer ?? null, slide_layout: q.slideLayout ?? 'auto',
+            section_layout: q.sectionLayout ?? null,
             time_limit_seconds: q.timeLimitSeconds, points: q.points,
             is_demo: q.isDemo, is_tie_breaker: q.isTieBreaker, position: pos,
             image_reveal_config: q.imageRevealConfig,
@@ -620,6 +635,8 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
       imageRevealConfig: sanitized.imageRevealConfig,
       acceptedAnswer: sanitized.acceptedAnswer.trim() || undefined,
       slideLayout: sanitized.slideLayout ?? 'auto',
+      sectionLayout: sanitized.sectionLayout,
+      optionDisplayMode: sanitized.optionDisplayMode,
       timeLimitSeconds: sanitized.timeLimitSeconds,
       points: sanitized.points,
       isDemo: sanitized.isDemo,
@@ -660,6 +677,8 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
         image_reveal_config: sanitized.imageRevealConfig,
         accepted_answer: sanitized.acceptedAnswer.trim() || null,
         slide_layout: sanitized.slideLayout ?? 'auto',
+        section_layout: sanitized.sectionLayout ?? null,
+        option_display_mode: sanitized.optionDisplayMode ?? null,
         time_limit_seconds: sanitized.timeLimitSeconds,
         points: sanitized.points,
         is_demo: sanitized.isDemo,
@@ -733,6 +752,7 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
         image_reveal_config: copy.imageRevealConfig,
         accepted_answer: copy.acceptedAnswer ?? null,
         slide_layout: copy.slideLayout ?? 'auto',
+        section_layout: copy.sectionLayout ?? null,
         time_limit_seconds: copy.timeLimitSeconds,
         points: copy.points,
         is_demo: copy.isDemo,

@@ -1,10 +1,11 @@
 import { useId, useRef, useState, type ChangeEvent } from 'react'
-import { ClipboardPaste, ImagePlus, Link2, Trash2, Upload } from 'lucide-react'
+import { ClipboardPaste, Crop, ImagePlus, Link2, Trash2, Upload } from 'lucide-react'
 
 interface ImageAssetFieldProps {
   label: string
   value: string
   onChange: (value: string) => void
+  onCrop?: () => void
   placeholder?: string
 }
 
@@ -30,6 +31,7 @@ export function ImageAssetField({
   label,
   value,
   onChange,
+  onCrop,
   placeholder = 'https://...',
 }: ImageAssetFieldProps) {
   const inputId = useId()
@@ -91,10 +93,10 @@ export function ImageAssetField({
 
   return (
     <div className="space-y-3">
-      <label className="space-y-2 text-sm text-white/80" htmlFor={inputId}>
+      <label className="space-y-2 text-sm text-md" htmlFor={inputId}>
         <span>{label}</span>
         <div className="relative">
-          <Link2 className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/35" />
+          <Link2 className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-faded" />
           <input
             className="input pl-10"
             id={inputId}
@@ -120,7 +122,7 @@ export function ImageAssetField({
 
       <div className="flex flex-wrap gap-2">
         <button
-          className="button-ghost rounded-full border border-white/10"
+          className="button-ghost rounded-full border border-edge"
           type="button"
           onClick={() => fileInputRef.current?.click()}
         >
@@ -128,16 +130,26 @@ export function ImageAssetField({
           Upload
         </button>
         <button
-          className="button-ghost rounded-full border border-white/10"
+          className="button-ghost rounded-full border border-edge"
           type="button"
           onClick={handlePaste}
         >
           <ClipboardPaste className="size-4" />
           Paste
         </button>
+        {hasImage && onCrop ? (
+          <button
+            className="button-ghost rounded-full border border-edge"
+            type="button"
+            onClick={onCrop}
+          >
+            <Crop className="size-4" />
+            Crop 1:1
+          </button>
+        ) : null}
         {hasImage ? (
           <button
-            className="button-ghost rounded-full border border-white/10"
+            className="button-ghost rounded-full border border-edge"
             type="button"
             onClick={() => {
               onChange('')
@@ -151,7 +163,7 @@ export function ImageAssetField({
       </div>
 
       {hasImage ? (
-        <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/95">
+        <div className="overflow-hidden rounded-2xl border border-edge bg-raised">
           <img
             alt={label}
             className="h-32 w-full object-contain p-2"
@@ -159,13 +171,13 @@ export function ImageAssetField({
           />
         </div>
       ) : (
-        <div className="flex items-center gap-3 rounded-2xl border border-dashed border-white/15 bg-white/4 px-4 py-3 text-sm text-white/55">
-          <ImagePlus className="size-4 text-orange-100" />
+        <div className="flex items-center gap-3 rounded-2xl border border-dashed border-rim bg-fill px-4 py-3 text-sm text-dim">
+          <ImagePlus className="size-4 text-accent-text" />
           Upload an image, paste one from clipboard, or keep using a URL.
         </div>
       )}
 
-      {status ? <p className="text-xs text-white/45">{status}</p> : null}
+      {status ? <p className="text-xs text-faded">{status}</p> : null}
     </div>
   )
 }

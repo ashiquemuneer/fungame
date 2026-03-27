@@ -31,7 +31,9 @@ export function createQuestionDraft(): QuestionDraft {
       revealStep: 0.45,
     },
     acceptedAnswer: '',
+    hostNotes: '',
     slideLayout: 'auto',
+    optionDisplayMode: 'text',
     timeLimitSeconds: 20,
     points: 10,
     isDemo: false,
@@ -51,7 +53,7 @@ function createSeedGames(): Game[] {
   return [
     {
       id: gameId,
-      title: '🚀 Demo: All Question Types',
+      title: 'Demo: All Question Types',
       description:
         'Try every slide type — section, multiple choice, true/false, short text, emoji, and image reveal. Perfect for exploring the game before building your own.',
       status: 'published',
@@ -64,7 +66,7 @@ function createSeedGames(): Game[] {
         {
           id: createId('question'),
           type: 'section',
-          prompt: '🎉 Welcome to the Demo Quiz!',
+          prompt: 'Welcome to the Demo Quiz!',
           acceptedAnswer:
             'This is a section slide — use it to introduce a round, show a title, or give players a moment to breathe between questions.',
           slideLayout: 'auto',

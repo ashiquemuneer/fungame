@@ -1,4 +1,4 @@
-import { Crown } from 'lucide-react'
+import { Crown, Download } from 'lucide-react'
 import { useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { LeaderboardTable } from '../components/LeaderboardTable'
@@ -65,23 +65,23 @@ export function ResultsPage() {
 
   if (!session || !game) {
     return (
-      <div className="panel p-8 text-center text-white/70">Results not found.</div>
+      <div className="panel p-8 text-center text-lo">Results not found.</div>
     )
   }
 
   return (
     <div className="space-y-6">
       <section className="panel overflow-hidden p-8 text-center">
-        <div className="mx-auto flex size-20 items-center justify-center rounded-full bg-orange-300 text-stone-950">
+        <div className="mx-auto flex size-20 items-center justify-center rounded-full bg-accent text-on-accent">
           <Crown className="size-10" />
         </div>
-        <p className="mt-6 font-mono text-xs uppercase tracking-[0.35em] text-orange-200/70">
+        <p className="mt-6 font-mono text-xs uppercase tracking-[0.22em] text-accent-text">
           Final winner
         </p>
-        <h2 className="mt-4 text-5xl font-semibold text-white">
+        <h2 className="mt-4 text-5xl font-semibold text-hi">
           {winner?.displayName ?? 'No winner yet'}
         </h2>
-        <p className="mt-4 text-lg text-white/65">
+        <p className="mt-4 text-lg text-lo">
           {winner ? `${winner.totalPoints} total points in ${game.title}` : 'Start scoring to see the winner.'}
         </p>
 
@@ -94,6 +94,27 @@ export function ResultsPage() {
               <Link className="button-secondary" to={`/host/sessions/${session.id}`}>
                 Re-open host controls
               </Link>
+              <button
+                className="button-secondary"
+                type="button"
+                onClick={() => {
+                  const rows = [
+                    ['Rank', 'Player', 'Total Points', 'Correct Answers'],
+                    ...leaderboard.map((e) => [e.rank, e.displayName, e.totalPoints, '']),
+                  ]
+                  const csv = rows.map((r) => r.map(String).map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\n')
+                  const blob = new Blob([csv], { type: 'text/csv' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `${game.title.replace(/[^a-z0-9]/gi, '_')}_results.csv`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+              >
+                <Download className="size-4" />
+                Export CSV
+              </button>
             </>
           ) : (
             <Link className="button-primary" to="/">
@@ -104,7 +125,7 @@ export function ResultsPage() {
       </section>
 
       <section className="panel p-6">
-        <p className="text-sm uppercase tracking-[0.25em] text-white/45">Full leaderboard</p>
+        <p className="text-sm uppercase tracking-[0.12em] text-dim">Full leaderboard</p>
         <div className="mt-4">
           <LeaderboardTable entries={leaderboard} />
         </div>
@@ -112,33 +133,33 @@ export function ResultsPage() {
 
       {isUnlocked ? (
         <section className="panel p-6">
-          <p className="text-sm uppercase tracking-[0.25em] text-white/45">Answer review</p>
-          <h3 className="mt-2 text-2xl font-semibold text-white">Selected vs correct answers</h3>
+          <p className="text-sm uppercase tracking-[0.12em] text-dim">Answer review</p>
+          <h3 className="mt-2 text-2xl font-semibold text-hi">Selected vs correct answers</h3>
           <div className="mt-5 space-y-4">
             {reviewRows.map(({ player, items }) => (
-              <div key={player.id} className="rounded-[1.8rem] border border-white/10 bg-black/15 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
+              <div key={player.id} className="rounded-[1.8rem] border border-edge bg-input-bg p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-edge pb-3">
                   <div>
-                    <p className="text-lg font-semibold text-white">{player.displayName}</p>
-                    <p className="text-sm text-white/55">{items.filter((item) => item.isCorrect).length} correct answers</p>
+                    <p className="text-lg font-semibold text-hi">{player.displayName}</p>
+                    <p className="text-sm text-lo">{items.filter((item) => item.isCorrect).length} correct answers</p>
                   </div>
                 </div>
 
-                <div className="mt-4 overflow-hidden rounded-[1.3rem] border border-white/10 bg-black/10">
-                  <table className="min-w-full divide-y divide-white/10 text-left text-sm">
-                    <thead className="bg-white/6 text-white/60">
+                <div className="mt-4 overflow-hidden rounded-[1.3rem] border border-edge bg-input-bg">
+                  <table className="min-w-full divide-y divide-edge text-left text-sm">
+                    <thead className="bg-fill-hi text-lo">
                       <tr>
                         <th className="px-4 py-3 font-medium">Question</th>
                         <th className="px-4 py-3 font-medium">Selected answer</th>
                         <th className="px-4 py-3 font-medium">Correct answer</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/8">
+                    <tbody className="divide-y divide-line">
                       {items.map((item) => (
                         <tr key={item.id} className="bg-transparent">
                           <td className="px-4 py-3 align-top">
-                            <p className="font-medium text-white">Q{item.index + 1}. {item.prompt}</p>
-                            <p className="mt-1 text-xs uppercase tracking-[0.2em] text-white/35">
+                            <p className="font-medium text-hi">Q{item.index + 1}. {item.prompt}</p>
+                            <p className="mt-1 text-xs uppercase tracking-[0.12em] text-faded">
                               {item.type.replace('_', ' ')}
                             </p>
                           </td>
@@ -147,15 +168,15 @@ export function ResultsPage() {
                               className={cn(
                                 'inline-flex rounded-full px-3 py-1 text-sm',
                                 item.isCorrect
-                                  ? 'bg-emerald-300/12 text-emerald-50'
-                                  : 'bg-sky-300/10 text-sky-50',
+                                  ? 'bg-ok-tint text-ok-fg'
+                                  : 'bg-note-tint text-note-fg',
                               )}
                             >
                               {item.selectedAnswer}
                             </span>
                           </td>
                           <td className="px-4 py-3 align-top">
-                            <span className="inline-flex rounded-full bg-white/8 px-3 py-1 text-sm text-white/80">
+                            <span className="inline-flex rounded-full bg-fill-lo px-3 py-1 text-sm text-md">
                               {item.correctAnswer}
                             </span>
                           </td>

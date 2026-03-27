@@ -1,17 +1,96 @@
+@import "./tokens.css";
 @import "tailwindcss";
 
+@theme inline {
+  /* ── Text hierarchy ── */
+  --color-hi:           var(--text-primary);
+  --color-md:           var(--text-secondary);
+  --color-lo:           var(--text-tertiary);
+  --color-dim:          var(--text-quaternary);
+  --color-faded:        var(--text-disabled);
+  --color-subtle:       var(--text-placeholder);
+  --color-on-accent:    var(--text-on-accent);
+  --color-inverse:      var(--text-inverse);
+
+  /* ── Brand / Accent ── */
+  --color-accent:       var(--accent);
+  --color-accent-text:  var(--accent-text);
+  --color-accent-dim:   var(--accent-container);
+  --color-accent-hover: var(--accent-hover);
+
+  /* ── Page backgrounds ── */
+  --color-page:         var(--background);
+  --color-page-alt:     var(--background-variant);
+  --color-page-up:      var(--background-elevated);
+
+  /* ── Surfaces ── */
+  --color-surface:      var(--surface);
+  --color-raised:       var(--surface-raised);
+  --color-fill:         var(--surface-container);
+  --color-fill-lo:      var(--surface-container-low);
+  --color-fill-hi:      var(--surface-container-high);
+
+  /* ── Input ── */
+  --color-input-bg:     var(--input-bg);
+
+  /* ── Interactive states ── */
+  --color-hover:        var(--state-hover);
+  --color-press:        var(--state-press);
+  --color-selected:     var(--state-selected);
+
+  /* ── Borders / outlines ── */
+  --color-line:         var(--outline-subtle);
+  --color-edge:         var(--outline-default);
+  --color-rim:          var(--outline-strong);
+  --color-form:         var(--outline-input);
+  --color-ring:         var(--outline-focus);
+  --color-ring-err:     var(--outline-error);
+
+  /* ── Success ── */
+  --color-ok:           var(--success);
+  --color-ok-fg:        var(--success-foreground);
+  --color-ok-tint:      var(--success-container);
+  --color-ok-line:      var(--success-outline);
+
+  /* ── Danger ── */
+  --color-err:          var(--danger);
+  --color-err-fg:       var(--danger-foreground);
+  --color-err-tint:     var(--danger-container);
+  --color-err-line:     var(--danger-outline);
+
+  /* ── Warning ── */
+  --color-warn:         var(--warning);
+  --color-warn-fg:      var(--warning-foreground);
+  --color-warn-tint:    var(--warning-container);
+  --color-warn-line:    var(--warning-outline);
+
+  /* ── Info ── */
+  --color-note:         var(--info);
+  --color-note-fg:      var(--info-foreground);
+  --color-note-tint:    var(--info-container);
+  --color-note-line:    var(--info-outline);
+}
+
+/* ================================================================
+   Global base
+   ================================================================ */
+
 :root {
-  color: #f5f1ea;
+  color: var(--text-primary);
   background:
-    radial-gradient(circle at top, rgba(253, 186, 116, 0.22), transparent 28%),
-    radial-gradient(circle at right, rgba(14, 165, 233, 0.18), transparent 24%),
-    linear-gradient(180deg, #22151a 0%, #120d14 54%, #09070d 100%);
-  font-family: "IBM Plex Sans", "Avenir Next", "Segoe UI", sans-serif;
+    radial-gradient(circle at top,  var(--gradient-glow-warm, rgba(253, 186, 116, 0.22)), transparent 28%),
+    radial-gradient(circle at right, var(--gradient-glow-cool, rgba(14, 165, 233, 0.18)), transparent 24%),
+    var(--gradient-page);
+  font-family: var(--font-body);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color-scheme: dark;
+}
+
+html.light {
+  color-scheme: light;
 }
 
 * {
@@ -32,45 +111,115 @@ a {
   text-decoration: none;
 }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
+@layer base {
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  /* Hide browser-native clear button on search inputs — we use our own */
+  input[type="search"]::-webkit-search-cancel-button {
+    display: none;
+  }
 }
 
 #root {
   min-height: 100vh;
 }
 
+/* Inline contenteditable placeholder */
+[contenteditable][data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-placeholder);
+  font-style: italic;
+  pointer-events: none;
+  cursor: text;
+}
+
+
+/* ================================================================
+   Shared component classes
+   (single rule each — tokens flip dark ↔ light automatically)
+   ================================================================ */
+
 .panel {
-  @apply relative isolate rounded-3xl border border-white/10 bg-[#18141d]/92 shadow-[0_24px_80px_rgba(0,0,0,0.28)] backdrop-blur-md;
+  @apply relative isolate rounded-3xl border backdrop-blur-md;
+  background:   var(--surface);
+  border-color: var(--outline-default);
+  box-shadow:   var(--shadow-panel);
+}
+
+html.light .panel {
+  backdrop-filter: none;
 }
 
 .input {
-  @apply w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-orange-300/60 focus:bg-black/25;
+  @apply w-full rounded-2xl border px-4 py-3 text-sm outline-none transition;
+  color:            var(--text-primary);
+  background:       var(--input-bg);
+  border-color:     var(--outline-input);
+}
+
+.input::placeholder {
+  color: var(--text-disabled);
+}
+
+.input:focus {
+  border-color: var(--outline-focus);
+  background:   var(--input-bg-focus);
+  outline: 2px solid var(--outline-focus);
+  outline-offset: 1px;
 }
 
 .button-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-full bg-orange-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-orange-200 disabled:cursor-not-allowed disabled:bg-orange-300/40;
+  @apply inline-flex items-center justify-center gap-2 rounded-full bg-orange-300 px-5 py-3 font-semibold text-stone-950 transition hover:bg-orange-200 focus-visible:outline-2 focus-visible:outline-orange-300 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:bg-orange-300/40;
 }
 
 .button-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/6 px-5 py-3 font-semibold text-white transition hover:border-white/25 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  color:        var(--text-primary);
+  background:   var(--surface-container);
+  border:       1px solid var(--outline-default);
+}
+
+.button-secondary:focus-visible {
+  outline-color: var(--outline-focus);
+}
+
+.button-secondary:hover {
+  background:   var(--state-hover);
+  border-color: var(--outline-strong);
 }
 
 .button-ghost {
-  @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white/70 transition hover:bg-white/8 hover:text-white;
+  @apply inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2;
+  color: var(--text-tertiary);
 }
+
+.button-ghost:focus-visible {
+  outline-color: var(--outline-focus);
+}
+
+.button-ghost:hover {
+  color:      var(--text-primary);
+  background: var(--state-hover);
+}
+
+
+/* ================================================================
+   Slide surface  (always dark — intentional)
+   ================================================================ */
 
 .slide-surface {
   background:
-    radial-gradient(circle at top left, rgba(251, 191, 36, 0.16), transparent 26%),
-    radial-gradient(circle at right, rgba(125, 211, 252, 0.14), transparent 22%),
-    linear-gradient(145deg, rgba(44, 28, 36, 0.96) 0%, rgba(27, 19, 28, 0.98) 54%, rgba(14, 11, 19, 1) 100%);
+    radial-gradient(circle at top left, var(--slide-glow-warm), transparent 26%),
+    radial-gradient(circle at right,    var(--slide-glow-cool), transparent 22%),
+    linear-gradient(145deg, var(--slide-from) 0%, var(--slide-mid) 54%, var(--slide-to) 100%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    0 35px 120px rgba(0, 0, 0, 0.3);
+    inset 0 1px 0 var(--slide-inset),
+    0 35px 120px var(--shadow-md);
 }
 
 .slide-chip {
@@ -78,13 +227,61 @@ select {
 }
 
 .slide-option {
-  @apply rounded-[1.6rem] border border-white/10 bg-white/6 px-5 py-4 text-base text-white/78 transition;
+  @apply rounded-[1.6rem] px-5 py-4 text-base transition;
+  border: 1px solid var(--outline-default);
+  background: var(--surface-container);
+  color: var(--text-secondary);
 }
 
 .slide-option-interactive {
-  @apply cursor-pointer hover:border-orange-200/35 hover:bg-white/10;
+  cursor: pointer;
+}
+
+.slide-option-interactive:hover {
+  border-color: var(--outline-strong);
+  background: var(--state-press);
+}
+
+.slide-option-interactive:focus-visible {
+  outline: 2px solid var(--outline-focus);
+  outline-offset: 2px;
 }
 
 .slide-option-media {
-  @apply overflow-hidden rounded-[1.25rem] border border-white/10 bg-black/20;
+  @apply overflow-hidden rounded-[1.25rem];
+  border: 1px solid var(--outline-default);
+  background: var(--input-bg);
+}
+
+
+/* ================================================================
+   Light-host Tailwind utility overrides
+   ─────────────────────────────────────────────────────────────────
+   Sidebar and header surfaces need explicit overrides since they
+   use arbitrary bg classes set directly on the elements.
+   ================================================================ */
+
+/* Root container */
+html.light .light-host {
+  background: transparent;
+}
+
+/* Sidebar & header surfaces */
+html.light .light-host aside {
+  background-color: var(--sidebar-bg);
+  border-color:     var(--sidebar-border);
+}
+
+html.light .light-host header {
+  background-color: var(--header-bg);
+  border-color:     var(--sidebar-border);
+}
+
+/* Backward-compat overrides for remaining arbitrary bg values */
+html.light .light-host .bg-\[\#09070d\],
+html.light .light-host .bg-\[\#0d0a12\],
+html.light .light-host .bg-\[\#0d0a14\],
+html.light .light-host .bg-\[\#120d14\],
+html.light .light-host .bg-\[\#18141d\] {
+  background-color: var(--sidebar-bg);
 }

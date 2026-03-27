@@ -4,6 +4,8 @@
 export { Button }                                    from './Button'
 export { Input, Textarea, SearchInput }              from './Input'
 export { Badge, StatusBadge, SessionStateBadge }     from './Badge'
+export { AlertBanner }                               from './AlertBanner'
+export { Panel }                                     from './Panel'
 export { Modal }                                     from './Modal'
 export { ConfirmDialog }                             from './ConfirmDialog'
 export {
@@ -17,3 +19,4 @@ export { ToastProvider, useToast }                   from './Toast'
 export { Tooltip }                                   from './Tooltip'
 export { Spinner, FullPageSpinner }                  from './Spinner'
 export { DropdownMenu, DropdownItem, DropdownSeparator } from './DropdownMenu'
+

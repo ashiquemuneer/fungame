@@ -117,7 +117,13 @@ export function sanitizeDraft(draft: QuestionDraft): QuestionDraft {
     }
   }
 
-  if (draft.type === 'short_text' || draft.type === 'emoji' || draft.type === 'image_guess') {
+  if (
+    draft.type === 'short_text' ||
+    draft.type === 'emoji' ||
+    draft.type === 'image_guess' ||
+    draft.type === 'rating' ||
+    draft.type === 'number_guess'
+  ) {
     return {
       ...draft,
       imageRevealConfig,
@@ -134,6 +140,8 @@ export function sanitizeDraft(draft: QuestionDraft): QuestionDraft {
       ...draft,
       imageRevealConfig,
       slideLayout: draft.slideLayout ?? 'auto',
+      sectionLayout: draft.sectionLayout,
+      imageFocalPoint: draft.imageFocalPoint,
       options: [],
       points: 0,
       timeLimitSeconds: 0,
@@ -162,8 +170,17 @@ export function sanitizeDraft(draft: QuestionDraft): QuestionDraft {
 }
 
 function scoreObjectiveAnswer(question: Question, answer: Answer) {
-  if (question.type === 'short_text' || question.type === 'section') {
+  if (question.type === 'short_text' || question.type === 'section' || question.type === 'rating') {
     return answer
+  }
+
+  if (question.type === 'number_guess') {
+    const target = parseFloat(question.acceptedAnswer ?? '')
+    const submitted = parseFloat(answer.textAnswer ?? '')
+    if (!isNaN(target) && !isNaN(submitted) && submitted === target && !question.isDemo) {
+      return { ...answer, isCorrect: true, awardedPoints: question.points, scoredManually: false }
+    }
+    return { ...answer, isCorrect: false, awardedPoints: 0, scoredManually: false }
   }
 
   if (question.type === 'image_guess') {
@@ -242,6 +259,8 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
           createdAt: now,
           updatedAt: now,
           questions: [],
+          tags: [],
+          isPublic: false,
         },
         ...current.games,
       ],
@@ -251,7 +270,7 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
   }, [])
 
   const updateGameMeta = useCallback(
-    (gameId: string, patch: Pick<Game, 'title' | 'description' | 'status'>) => {
+    (gameId: string, patch: Pick<Game, 'title' | 'description' | 'status'> & Partial<Pick<Game, 'tags' | 'isPublic' | 'coverImage'>>) => {
       setState((current) => ({
         ...current,
         games: current.games.map((game) =>
@@ -317,10 +336,16 @@ export function GameStoreProvider({ children }: PropsWithChildren) {
             imageRevealConfig: sanitized.imageRevealConfig,
             acceptedAnswer: sanitized.acceptedAnswer.trim() || undefined,
             slideLayout: sanitized.slideLayout ?? 'auto',
+            sectionLayout: sanitized.sectionLayout,
+            imageFocalPoint: sanitized.imageFocalPoint,
             timeLimitSeconds: sanitized.timeLimitSeconds,
             points: sanitized.points,
             isDemo: sanitized.isDemo,
             isTieBreaker: sanitized.isTieBreaker,
+            shortAnswerType: sanitized.shortAnswerType,
+            numberMin: sanitized.numberMin,
+            numberMax: sanitized.numberMax,
+            optionDisplayMode: sanitized.optionDisplayMode,
             options: sanitized.options.map((option) => ({
               ...option,
               label: option.label.trim(),

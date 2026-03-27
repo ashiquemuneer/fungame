@@ -5,7 +5,10 @@ export type QuestionType =
   | 'emoji'
   | 'image_guess'
   | 'section'
+  | 'rating'
+  | 'number_guess'
 export type SlideLayout = 'auto' | 'bottom' | 'right'
+export type OptionDisplayMode = 'text' | 'image' | 'text+image'
 export type GameStatus = 'draft' | 'published'
 export type SessionState = 'lobby' | 'live' | 'paused' | 'completed'
 
@@ -32,11 +35,19 @@ export interface Question {
   imageUrl?: string
   imageRevealConfig?: ImageRevealConfig
   acceptedAnswer?: string
+  hostNotes?: string
   slideLayout?: SlideLayout
+  sectionLayout?: 'cover' | 'image-left' | 'image-right'
+  imageFocalPoint?: { x: number; y: number }
   timeLimitSeconds: number
   points: number
   isDemo: boolean
   isTieBreaker: boolean
+  isSkipped?: boolean
+  shortAnswerType?: 'text' | 'number'
+  numberMin?: number
+  numberMax?: number
+  optionDisplayMode?: OptionDisplayMode
   options: QuestionOption[]
 }
 
@@ -135,10 +146,18 @@ export interface QuestionDraft {
   imageUrl: string
   imageRevealConfig: ImageRevealConfig
   acceptedAnswer: string
+  hostNotes: string
   slideLayout: SlideLayout
+  sectionLayout?: 'cover' | 'image-left' | 'image-right'
+  imageFocalPoint?: { x: number; y: number }
   timeLimitSeconds: number
   points: number
   isDemo: boolean
   isTieBreaker: boolean
+  isSkipped?: boolean
+  shortAnswerType?: 'text' | 'number'
+  numberMin?: number
+  numberMax?: number
+  optionDisplayMode: OptionDisplayMode
   options: QuestionOption[]
 }
