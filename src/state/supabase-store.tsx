@@ -268,7 +268,7 @@ const GAME_SELECT = `
     id, game_id, position, type, prompt, emoji_prompt, image_url,
     image_reveal_config, accepted_answer, slide_layout, time_limit_seconds,
     points, is_demo, is_tie_breaker, created_at,
-    section_layout,
+    section_layout, option_display_mode,
     question_options (id, question_id, position, label, image_url, is_correct)
   )
 `.trim()
@@ -308,95 +308,65 @@ async function selectGames(userId: string, query: string) {
 async function loadAll(userId: string): Promise<AppState> {
   if (!supabase) return { games: [], sessions: [], players: [], answers: [], sessionResults: [] }
 
-  // 1. Games I host
-  const { data: hostGamesData, error: gamesErr } = await selectGames(userId, GAME_SELECT)
+  // Batch 1 — all independent queries in parallel
+  const [
+    hostGamesResult,
+    hostSessionsResult,
+    membershipsResult,
+    collabLinksResult,
+  ] = await Promise.all([
+    selectGames(userId, GAME_SELECT),
+    supabase.from('sessions').select('*').eq('host_user_id', userId).order('created_at', { ascending: false }),
+    supabase.from('session_players').select('session_id').eq('auth_user_id', userId),
+    supabase.from('game_collaborators').select('game_id').eq('collaborator_user_id', userId),
+  ])
 
+  const { data: hostGamesData, error: gamesErr } = hostGamesResult
   if (gamesErr) console.error('[loadAll] games query failed:', gamesErr)
-  console.log('[loadAll] userId:', userId, 'hostGamesData count:', hostGamesData?.length ?? 'null/error')
 
-  // 2. Sessions I host
-  const { data: hostSessionData, error: sessionsErr } = await supabase
-    .from('sessions')
-    .select('*')
-    .eq('host_user_id', userId)
-    .order('created_at', { ascending: false })
+  const hostSessionData = hostSessionsResult.data ?? []
+  const playerSessionIds = (membershipsResult.data ?? []).map((m: any) => m.session_id)
+  const collabGameIds = (collabLinksResult.data ?? []).map((r: any) => r.game_id)
+  const hostGameIds = new Set(((hostGamesData ?? []) as any[]).map((g) => g.id))
+  const newCollabIds = collabGameIds.filter((id: string) => !hostGameIds.has(id))
+  const selectQuery = gamesErr ? GAME_SELECT_LEGACY : GAME_SELECT
 
-  if (sessionsErr) console.error('[loadAll] sessions query failed:', sessionsErr)
-
-  // 3. Sessions where I'm a player
-  const { data: memberships } = await supabase
-    .from('session_players')
-    .select('session_id')
-    .eq('auth_user_id', userId)
-
-  const playerSessionIds = (memberships ?? []).map((m) => m.session_id)
-
-  let playerSessionData: any[] = []
-  if (playerSessionIds.length > 0) {
-    const { data } = await supabase
-      .from('sessions')
-      .select('*')
-      .in('id', playerSessionIds)
-    playerSessionData = data ?? []
-  }
+  // Batch 2 — conditional fetches that depend on batch 1 results, run in parallel
+  const [playerSessionData, collabGamesData] = await Promise.all([
+    playerSessionIds.length > 0
+      ? supabase.from('sessions').select('*').in('id', playerSessionIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+    newCollabIds.length > 0
+      ? supabase.from('games').select(selectQuery).in('id', newCollabIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+  ])
 
   // Merge sessions (dedup)
   const sessionMap = new Map<string, any>()
-  for (const s of [...(hostSessionData ?? []), ...playerSessionData]) {
-    sessionMap.set(s.id, s)
-  }
+  for (const s of [...hostSessionData, ...playerSessionData]) sessionMap.set(s.id, s)
   const allSessionRows = [...sessionMap.values()]
   const allSessionIds = allSessionRows.map((s) => s.id)
 
-  // 1b. Games I collaborate on
-  const { data: collabLinks } = await supabase
-    .from('game_collaborators')
-    .select('game_id')
-    .eq('collaborator_user_id', userId)
-
-  const collabGameIds = (collabLinks ?? []).map((r: any) => r.game_id)
-  const hostGameIds = new Set(((hostGamesData ?? []) as any[]).map((g) => g.id))
-  const newCollabIds = collabGameIds.filter((id: string) => !hostGameIds.has(id))
-
-  let collabGamesData: any[] = []
-  if (newCollabIds.length > 0) {
-    const { data } = await supabase
-      .from('games')
-      .select(gamesErr ? GAME_SELECT_LEGACY : GAME_SELECT)
-      .in('id', newCollabIds)
-    collabGamesData = data ?? []
-  }
-
-  // 4. Load games for player sessions that I don't already have
   const allOwnedGameIds = new Set([...hostGameIds, ...newCollabIds])
   const missingGameIds = playerSessionData
     .map((s: any) => s.game_id)
     .filter((id: string) => !allOwnedGameIds.has(id))
 
-  let playerGamesData: any[] = []
-  if (missingGameIds.length > 0) {
-    const { data } = await supabase
-      .from('games')
-      .select(gamesErr ? GAME_SELECT_LEGACY : GAME_SELECT)
-      .in('id', missingGameIds)
-    playerGamesData = data ?? []
-  }
-
-  // 5. Players, answers, and session results for all sessions
-  let playerRows: any[] = []
-  let answerRows: any[] = []
-  let sessionResultRows: any[] = []
-
-  if (allSessionIds.length > 0) {
-    const [{ data: pData }, { data: aData }, { data: srData }] = await Promise.all([
-      supabase.from('session_players').select('*').in('session_id', allSessionIds),
-      supabase.from('answers').select('*').in('session_id', allSessionIds),
-      supabase.from('session_results').select('*').in('session_id', allSessionIds),
-    ])
-    playerRows = pData ?? []
-    answerRows = aData ?? []
-    sessionResultRows = srData ?? []
-  }
+  // Batch 3 — player games + all session sub-tables in parallel
+  const [playerGamesData, playerRows, answerRows, sessionResultRows] = await Promise.all([
+    missingGameIds.length > 0
+      ? supabase.from('games').select(selectQuery).in('id', missingGameIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+    allSessionIds.length > 0
+      ? supabase.from('session_players').select('*').in('session_id', allSessionIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+    allSessionIds.length > 0
+      ? supabase.from('answers').select('*').in('session_id', allSessionIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+    allSessionIds.length > 0
+      ? supabase.from('session_results').select('*').in('session_id', allSessionIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+  ])
 
   return {
     games: [...(hostGamesData ?? []), ...collabGamesData, ...playerGamesData].map(mapGame),
@@ -666,28 +636,32 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
         ? (game?.questions.findIndex((q) => q.id === questionId) ?? 0)
         : (game?.questions.length ?? 0)
 
-      const { error: qError } = await supabase!.from('questions').upsert({
-        id: qId,
-        game_id: gameId,
-        position,
-        type: sanitized.type,
-        prompt: sanitized.prompt.trim(),
-        emoji_prompt: sanitized.emojiPrompt.trim() || null,
-        image_url: sanitized.imageUrl.trim() || null,
-        image_reveal_config: sanitized.imageRevealConfig,
-        accepted_answer: sanitized.acceptedAnswer.trim() || null,
-        slide_layout: sanitized.slideLayout ?? 'auto',
-        section_layout: sanitized.sectionLayout ?? null,
-        option_display_mode: sanitized.optionDisplayMode ?? null,
-        time_limit_seconds: sanitized.timeLimitSeconds,
-        points: sanitized.points,
-        is_demo: sanitized.isDemo,
-        is_tie_breaker: sanitized.isTieBreaker,
-      })
+      // Upsert question + update game timestamp in parallel
+      const [{ error: qError }] = await Promise.all([
+        supabase!.from('questions').upsert({
+          id: qId,
+          game_id: gameId,
+          position,
+          type: sanitized.type,
+          prompt: sanitized.prompt.trim(),
+          emoji_prompt: sanitized.emojiPrompt.trim() || null,
+          image_url: sanitized.imageUrl.trim() || null,
+          image_reveal_config: sanitized.imageRevealConfig,
+          accepted_answer: sanitized.acceptedAnswer.trim() || null,
+          slide_layout: sanitized.slideLayout ?? 'auto',
+          section_layout: sanitized.sectionLayout ?? null,
+          option_display_mode: sanitized.optionDisplayMode ?? null,
+          time_limit_seconds: sanitized.timeLimitSeconds,
+          points: sanitized.points,
+          is_demo: sanitized.isDemo,
+          is_tie_breaker: sanitized.isTieBreaker,
+        }),
+        supabase!.from('games').update({ updated_at: now }).eq('id', gameId),
+      ])
       if (qError) { console.error('saveQuestion upsert:', qError); return }
 
+      // Replace options: delete then insert
       await supabase!.from('question_options').delete().eq('question_id', qId)
-
       if (sanitized.options.length > 0) {
         const { error: oError } = await supabase!.from('question_options').insert(
           sanitized.options.map((opt, idx) => ({
@@ -701,8 +675,6 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
         )
         if (oError) console.error('saveQuestion options:', oError)
       }
-
-      await supabase!.from('games').update({ updated_at: now }).eq('id', gameId)
     }
 
     persist()
