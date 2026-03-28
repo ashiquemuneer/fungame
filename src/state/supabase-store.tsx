@@ -508,16 +508,22 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
   const refreshSessions = useCallback(() => {
     if (!userId || !supabase) return
     scheduleTableRefresh('sessions', async () => {
-      const { data } = await supabase!.from('sessions')
-        .select('*')
-        .or(`host_user_id.eq.${userId}`)
-        .order('created_at', { ascending: false })
-      if (!data) return
+      // Fetch host sessions + any sessions already tracked (player-joined)
+      const currentIds = stateRef.current.sessions.map((s) => s.id)
+      const [hostResult, playerResult] = await Promise.all([
+        supabase!.from('sessions')
+          .select('*')
+          .eq('host_user_id', userId)
+          .order('created_at', { ascending: false }),
+        currentIds.length > 0
+          ? supabase!.from('sessions').select('*').in('id', currentIds)
+          : Promise.resolve({ data: [] as any[], error: null }),
+      ])
+      const allData = [...(hostResult.data ?? []), ...(playerResult.data ?? [])]
+      if (allData.length === 0) return
       setState((c) => {
-        const updated = new Map(data.map((r: any) => [r.id, mapSession(r)]))
-        // Keep sessions the user might have joined as player that weren't in this query
+        const updated = new Map(allData.map((r: any) => [r.id, mapSession(r)]))
         const merged = c.sessions.map((s) => updated.get(s.id) ?? s)
-        // Add any brand-new sessions from the host query
         for (const [id, sess] of updated) {
           if (!merged.find((s) => s.id === id)) merged.unshift(sess)
         }
