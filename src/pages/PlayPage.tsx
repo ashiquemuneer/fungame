@@ -20,11 +20,22 @@ export function PlayPage() {
   const [textAnswer, setTextAnswer] = useState('')
   const [revealCount, setRevealCount] = useState(0)
   const [tick, setTick] = useState(() => Date.now())
+  // Wait up to 5 s for store data to arrive after joining before showing the not-found error
+  const [waitingForData, setWaitingForData] = useState(true)
 
   const session = getSession(sessionId)
   const game = session ? getGame(session.gameId) : undefined
   const player = getPlayersForSession(sessionId).find((entry) => entry.id === playerId)
   const leaderboard = getLeaderboard(sessionId)
+
+  useEffect(() => {
+    if (session && game && player) {
+      setWaitingForData(false)
+      return
+    }
+    const timer = setTimeout(() => setWaitingForData(false), 5000)
+    return () => clearTimeout(timer)
+  }, [session, game, player])
 
   const currentQuestion =
     session && game && session.currentQuestionIndex !== null
@@ -62,6 +73,13 @@ export function PlayPage() {
   }, [currentQuestion?.id])
 
   if (!session || !game || !player) {
+    if (waitingForData) {
+      return (
+        <div className="panel mx-auto max-w-xl p-10 text-center">
+          <p className="text-lo">Connecting to room…</p>
+        </div>
+      )
+    }
     return (
       <div className="panel mx-auto max-w-xl p-10 text-center">
         <p className="text-lo">Player session not found. Join the room again.</p>

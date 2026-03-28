@@ -262,7 +262,8 @@ function scoreAnswer(
 // Data loader
 // ---------------------------------------------------------------------------
 
-const GAME_SELECT = `
+// Use the broadest query first; fall back if a column doesn't exist yet.
+const GAME_SELECT_FULL = `
   id, host_user_id, title, description, status, created_at, updated_at,
   questions (
     id, game_id, position, type, prompt, emoji_prompt, image_url,
@@ -283,26 +284,39 @@ const GAME_SELECT_LEGACY = `
   )
 `.trim()
 
-async function selectGames(userId: string, query: string) {
-  const result = await supabase!
-    .from('games')
-    .select(query)
-    .eq('host_user_id', userId)
-    .order('created_at', { ascending: false })
+// Cache which query works so we never retry after first success/failure
+let _gameSelectQuery: string | null = null
 
-  if (!result.error) {
-    return result
-  }
-
-  if (query === GAME_SELECT && String(result.error.message ?? '').includes('section_layout')) {
+async function selectGames(userId: string) {
+  // If we already know which query works, use it directly (no retry)
+  if (_gameSelectQuery) {
     return supabase!
       .from('games')
-      .select(GAME_SELECT_LEGACY)
+      .select(_gameSelectQuery)
       .eq('host_user_id', userId)
       .order('created_at', { ascending: false })
   }
 
-  return result
+  // First attempt: try full query
+  const result = await supabase!
+    .from('games')
+    .select(GAME_SELECT_FULL)
+    .eq('host_user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (!result.error) {
+    _gameSelectQuery = GAME_SELECT_FULL
+    return result
+  }
+
+  // Fallback: legacy query without newer columns
+  console.warn('[selectGames] full query failed, trying legacy:', result.error.message)
+  _gameSelectQuery = GAME_SELECT_LEGACY
+  return supabase!
+    .from('games')
+    .select(GAME_SELECT_LEGACY)
+    .eq('host_user_id', userId)
+    .order('created_at', { ascending: false })
 }
 
 async function loadAll(userId: string): Promise<AppState> {
@@ -315,7 +329,7 @@ async function loadAll(userId: string): Promise<AppState> {
     membershipsResult,
     collabLinksResult,
   ] = await Promise.all([
-    selectGames(userId, GAME_SELECT),
+    selectGames(userId),
     supabase.from('sessions').select('*').eq('host_user_id', userId).order('created_at', { ascending: false }),
     supabase.from('session_players').select('session_id').eq('auth_user_id', userId),
     supabase.from('game_collaborators').select('game_id').eq('collaborator_user_id', userId),
@@ -329,50 +343,83 @@ async function loadAll(userId: string): Promise<AppState> {
   const collabGameIds = (collabLinksResult.data ?? []).map((r: any) => r.game_id)
   const hostGameIds = new Set(((hostGamesData ?? []) as any[]).map((g) => g.id))
   const newCollabIds = collabGameIds.filter((id: string) => !hostGameIds.has(id))
-  const selectQuery = gamesErr ? GAME_SELECT_LEGACY : GAME_SELECT
 
-  // Batch 2 — conditional fetches that depend on batch 1 results, run in parallel
-  const [playerSessionData, collabGamesData] = await Promise.all([
+  // Merge sessions (dedup)
+  const sessionMap = new Map<string, any>()
+  for (const s of hostSessionData) sessionMap.set(s.id, s)
+
+  // Batch 2 — conditional fetches + session sub-tables, all in parallel
+  // KEY OPTIMIZATION: Only load players/answers for ACTIVE sessions (not completed).
+  // Completed sessions have their data in session_results already.
+  const activeSessionIds = hostSessionData
+    .filter((s: any) => s.state !== 'completed')
+    .map((s: any) => s.id)
+  const completedSessionIds = hostSessionData
+    .filter((s: any) => s.state === 'completed')
+    .map((s: any) => s.id)
+
+  const [
+    playerSessionData,
+    collabGamesData,
+    playerRows,
+    answerRows,
+    sessionResultRows,
+    playerSessionPlayerRows,   // pre-fetch: players in sessions the user joined
+    playerSessionAnswerRows,   // pre-fetch: answers in sessions the user joined
+  ] = await Promise.all([
     playerSessionIds.length > 0
       ? supabase.from('sessions').select('*').in('id', playerSessionIds).then((r) => r.data ?? [])
       : Promise.resolve([] as any[]),
     newCollabIds.length > 0
-      ? supabase.from('games').select(selectQuery).in('id', newCollabIds).then((r) => r.data ?? [])
+      ? supabase.from('games').select(_gameSelectQuery ?? GAME_SELECT_LEGACY).in('id', newCollabIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+    activeSessionIds.length > 0
+      ? supabase.from('session_players').select('*').in('session_id', activeSessionIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+    activeSessionIds.length > 0
+      ? supabase.from('answers').select('*').in('session_id', activeSessionIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+    completedSessionIds.length > 0
+      ? supabase.from('session_results').select('*').in('session_id', completedSessionIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+    // Pre-fetch player/answer data for player sessions using session_ids already known from batch 1
+    playerSessionIds.length > 0
+      ? supabase.from('session_players').select('*').in('session_id', playerSessionIds).then((r) => r.data ?? [])
+      : Promise.resolve([] as any[]),
+    playerSessionIds.length > 0
+      ? supabase.from('answers').select('*').in('session_id', playerSessionIds).then((r) => r.data ?? [])
       : Promise.resolve([] as any[]),
   ])
 
-  // Merge sessions (dedup)
-  const sessionMap = new Map<string, any>()
-  for (const s of [...hostSessionData, ...playerSessionData]) sessionMap.set(s.id, s)
+  // Add player sessions to the session map
+  for (const s of playerSessionData) sessionMap.set(s.id, s)
   const allSessionRows = [...sessionMap.values()]
-  const allSessionIds = allSessionRows.map((s) => s.id)
 
   const allOwnedGameIds = new Set([...hostGameIds, ...newCollabIds])
-  const missingGameIds = playerSessionData
-    .map((s: any) => s.game_id)
-    .filter((id: string) => !allOwnedGameIds.has(id))
+  const missingGameIds = [...new Set(
+    playerSessionData
+      .map((s: any) => s.game_id)
+      .filter((id: string) => !allOwnedGameIds.has(id))
+  )]
 
-  // Batch 3 — player games + all session sub-tables in parallel
-  const [playerGamesData, playerRows, answerRows, sessionResultRows] = await Promise.all([
+  // Batch 3 — only if player joined sessions with games we don't have yet
+  const [playerGamesData] = await Promise.all([
     missingGameIds.length > 0
-      ? supabase.from('games').select(selectQuery).in('id', missingGameIds).then((r) => r.data ?? [])
-      : Promise.resolve([] as any[]),
-    allSessionIds.length > 0
-      ? supabase.from('session_players').select('*').in('session_id', allSessionIds).then((r) => r.data ?? [])
-      : Promise.resolve([] as any[]),
-    allSessionIds.length > 0
-      ? supabase.from('answers').select('*').in('session_id', allSessionIds).then((r) => r.data ?? [])
-      : Promise.resolve([] as any[]),
-    allSessionIds.length > 0
-      ? supabase.from('session_results').select('*').in('session_id', allSessionIds).then((r) => r.data ?? [])
+      ? supabase.from('games').select(_gameSelectQuery ?? GAME_SELECT_LEGACY).in('id', missingGameIds).then((r) => r.data ?? [])
       : Promise.resolve([] as any[]),
   ])
+
+  // Merge players and answers (dedup by id)
+  const allPlayers = new Map<string, any>()
+  for (const p of [...playerRows, ...playerSessionPlayerRows]) allPlayers.set(p.id, p)
+  const allAnswers = new Map<string, any>()
+  for (const a of [...answerRows, ...playerSessionAnswerRows]) allAnswers.set(a.id, a)
 
   return {
     games: [...(hostGamesData ?? []), ...collabGamesData, ...playerGamesData].map(mapGame),
     sessions: allSessionRows.map(mapSession),
-    players: playerRows.map(mapPlayer),
-    answers: answerRows.map(mapAnswer),
+    players: [...allPlayers.values()].map(mapPlayer),
+    answers: [...allAnswers.values()].map(mapAnswer),
     sessionResults: sessionResultRows.map(mapSessionResult),
   }
 }
@@ -385,7 +432,6 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState<AppState>({ games: [], sessions: [], players: [], answers: [], sessionResults: [] })
   const [userId, setUserId] = useState<string | null>(null)
   const stateRef = useRef(state)
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [hostEmail, setHostEmail] = useState<string | null>(null)
   const [isHostAuthenticated, setIsHostAuthenticated] = useState(false)
   const [authLoading, setAuthLoading] = useState(true)
@@ -445,28 +491,82 @@ export function SupabaseStoreProvider({ children }: PropsWithChildren) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId])
 
-  // Debounced refresh helper
-  const scheduleRefresh = useCallback(() => {
-    if (!userId) return
-    if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
-    refreshTimerRef.current = setTimeout(() => {
-      loadAll(userId).then(setState)
-    }, 250)
-  }, [userId])
+  // -------------------------------------------------------------------------
+  // Targeted incremental refresh helpers
+  // -------------------------------------------------------------------------
+  // Instead of calling loadAll() (which fetches ALL tables) on every realtime
+  // event, we only refetch the table that actually changed. This dramatically
+  // reduces network traffic and latency during live sessions.
 
-  // Realtime subscriptions
+  const refreshTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  const scheduleTableRefresh = useCallback((table: string, fetcher: () => void) => {
+    if (refreshTimers.current[table]) clearTimeout(refreshTimers.current[table])
+    refreshTimers.current[table] = setTimeout(fetcher, 200)
+  }, [])
+
+  const refreshSessions = useCallback(() => {
+    if (!userId || !supabase) return
+    scheduleTableRefresh('sessions', async () => {
+      const { data } = await supabase!.from('sessions')
+        .select('*')
+        .or(`host_user_id.eq.${userId}`)
+        .order('created_at', { ascending: false })
+      if (!data) return
+      setState((c) => {
+        const updated = new Map(data.map((r: any) => [r.id, mapSession(r)]))
+        // Keep sessions the user might have joined as player that weren't in this query
+        const merged = c.sessions.map((s) => updated.get(s.id) ?? s)
+        // Add any brand-new sessions from the host query
+        for (const [id, sess] of updated) {
+          if (!merged.find((s) => s.id === id)) merged.unshift(sess)
+        }
+        return { ...c, sessions: merged }
+      })
+    })
+  }, [userId, scheduleTableRefresh])
+
+  const refreshPlayers = useCallback(() => {
+    if (!supabase) return
+    scheduleTableRefresh('players', async () => {
+      const sessionIds = stateRef.current.sessions.map((s) => s.id)
+      if (sessionIds.length === 0) return
+      const { data } = await supabase!
+        .from('session_players')
+        .select('*')
+        .in('session_id', sessionIds)
+      if (!data) return
+      setState((c) => ({ ...c, players: data.map(mapPlayer) }))
+    })
+  }, [scheduleTableRefresh])
+
+  const refreshAnswers = useCallback(() => {
+    if (!supabase) return
+    scheduleTableRefresh('answers', async () => {
+      const sessionIds = stateRef.current.sessions.map((s) => s.id)
+      if (sessionIds.length === 0) return
+      const { data } = await supabase!
+        .from('answers')
+        .select('*')
+        .in('session_id', sessionIds)
+      if (!data) return
+      setState((c) => ({ ...c, answers: data.map(mapAnswer) }))
+    })
+  }, [scheduleTableRefresh])
+
+  // Realtime subscriptions — each table triggers only its own targeted refresh
   useEffect(() => {
     if (!userId || !supabase) return
 
     const channel = supabase
       .channel('fungame-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, scheduleRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_players' }, scheduleRefresh)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'answers' }, scheduleRefresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sessions' }, refreshSessions)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_players' }, refreshPlayers)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'answers' }, refreshAnswers)
       .subscribe()
 
     return () => { supabase!.removeChannel(channel) }
-  }, [userId, scheduleRefresh])
+  }, [userId, refreshSessions, refreshPlayers, refreshAnswers])
 
   // ---------------------------------------------------------------------------
   // Game mutations
